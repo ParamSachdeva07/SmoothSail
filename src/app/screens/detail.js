@@ -2,6 +2,7 @@ import { icon } from '../icons.js';
 import { createFlatMap } from '../../globe/flatmap.js';
 import { getReport, getRoutes, findRoute, reportPort, formatDuration, formatNm, formatUsd, coverageLabel, formatNumber } from '../../data/routes.js';
 import { formatEta } from '../../data/shipment.js';
+import { validWaveGrid, framePair, waveAt } from '../../globe/waves.js';
 
 export function createDetailScreen({ getSelectedRouteId, onBack }) {
   const element = document.createElement('section');
@@ -18,15 +19,24 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
         <dl class="legend">
           <div><dt><i class="dot dot--accent"></i></dt><dd class="mono-label">Port approaches · A to B</dd></div>
           <div><dt><i class="line line--accent"></i></dt><dd class="mono-label">Selected route</dd></div>
+          <div><dt><i class="dot dot--vessel"></i></dt><dd class="mono-label">Voyage preview · not live AIS</dd></div>
           <div><dt><i class="line line--alternate"></i></dt><dd class="mono-label">Other routes · may overlap</dd></div>
+          <div><dt><i class="line line--hazard"></i></dt><dd class="mono-label">High-sea forecast · 4 / 6 m</dd></div>
         </dl>
         <div class="controls">
           <div class="toggles">
             <p class="toggles__title mono-label">${icon('layers')}<span>Overlays</span></p>
-            <label class="toggle" title="Wind direction data is not supplied by this API"><input type="checkbox" disabled><span>Wind prediction</span></label>
-            <label class="toggle" title="Conflict screening is not connected"><input type="checkbox" disabled><span>Conflict zones</span></label>
+            <label class="toggle"><input type="checkbox" data-overlay="waves" checked><span>Wave forecast</span></label>
+            <div class="wave-scale" data-role="wave-scale">
+              <div class="wave-scale__ramp" aria-hidden="true"></div>
+              <div class="wave-scale__labels mono-label"><span>0</span><span>2</span><span>4</span><span>6+ m</span></div>
+              <p class="toggles__note mono-label" data-role="wave-note">Significant wave height</p>
+            </div>
+            <label class="toggle" title="Forecast wave-height contours, not official storm warnings"><input type="checkbox" data-overlay="hazards" checked><span>High seas · 4+ m</span></label>
+            <label class="toggle"><input type="checkbox" data-overlay="restrictions" disabled><span>Restricted areas</span></label>
+            <p class="toggles__note mono-label" data-role="restriction-note">Data unavailable</p>
             <label class="toggle"><input type="checkbox" data-overlay="alternates"><span>Other routes</span></label>
-            <p class="toggles__note mono-label">Wind / conflict layers unavailable</p>
+            <p class="toggles__note mono-label">Click an area for details</p>
           </div>
           <div class="zoom">
             <button class="button button--quiet" type="button" data-action="fit">Fit route</button>
@@ -36,6 +46,18 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
         </div>
       </div>
       <div class="detail__footer">
+        <div class="voyage-timeline">
+          <div class="voyage-timeline__head">
+            <span class="mono-label">Voyage preview · 90s / voyage</span>
+            <span class="mono-label" data-role="voyage-time"></span>
+          </div>
+          <div class="voyage-timeline__track">
+            <button class="button button--quiet" type="button" data-action="play" aria-label="Pause voyage preview">Pause</button>
+            <input type="range" min="0" max="1000" step="0.1" value="0" aria-label="Voyage progress" data-role="voyage-progress">
+            <button class="button button--quiet" type="button" data-action="restart" aria-label="Restart voyage preview">Restart</button>
+          </div>
+          <p class="mono-label voyage-timeline__position" data-role="voyage-position"></p>
+        </div>
         <div class="infostrip">
           <dl class="metrics metrics--strip">
             <div class="metric"><dt class="mono-label">Transit</dt><dd class="metric__value" data-role="duration"></dd></div>
@@ -46,12 +68,48 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
           <div class="infostrip__actions"><button class="button button--quiet" type="button" disabled title="Route information is coming soon">${icon('info')}<span>More info</span></button></div>
         </div>
         <p class="detail__credit mono-label" data-role="coverage"></p>
-        <p class="detail__credit mono-label">Map Mapbox · Land Natural Earth 1:10m · Planning estimate, not for navigation · Compliance not assessed</p>
+        <p class="detail__credit mono-label">Mapbox Light · Planning estimate, not for navigation · Compliance not assessed</p>
       </div>
     </div>`;
   let flat = null;
+  let activeReport = null;
+  let lastUiTick = 0;
+  function updateVoyage({ hour, duration, coordinates, kind, waveHeightM }) {
+    const slider = element.querySelector('[data-role="voyage-progress"]');
+    slider.value = String(duration ? hour / duration * 1000 : 0);
+    const now = performance.now();
+    if (now - lastUiTick < 200 && hour > 0 && hour < duration && document.activeElement !== slider) return;
+    lastUiTick = now;
+    const when = new Date(Date.parse(activeReport.departureTime) + hour * 3_600_000).toISOString();
+    element.querySelector('[data-role="voyage-time"]').textContent = `${formatDuration(hour)} elapsed · ${formatEta(when)}`;
+    slider.setAttribute('aria-valuetext', `${formatDuration(hour)} into voyage, ${formatEta(when)}`);
+    const grid = validWaveGrid(activeReport.waveGrid) ? activeReport.waveGrid : null;
+    const height = grid ? waveAt(grid, hour, coordinates) : null;
+    const phase = hour >= duration ? 'Arrived at approach' : kind === 'canal_wait' ? 'Assumed canal wait' : kind === 'canal_transit' ? 'Canal transit' : 'Sailing';
+    const sample = height !== null ? `${height.toFixed(1)} m waves here` : Number.isFinite(waveHeightM) ? `${waveHeightM.toFixed(1)} m waves · route sample` : 'Wave height here unavailable';
+    element.querySelector('[data-role="voyage-position"]').textContent = `${phase} · ${sample} · Simulated position`;
+    const pair = grid ? framePair(grid, hour) : null;
+    const hasData = pair && grid.frames[pair.a].values.some((v, i) => Number.isFinite(v) && Number.isFinite(grid.frames[pair.b].values[i]));
+    element.querySelector('[data-role="wave-note"]').textContent = hasData ? 'Significant wave height' : 'No forecast at this time';
+    element.querySelector('[data-role="wave-scale"]').dataset.available = String(Boolean(hasData));
+  }
+  function updatePlayback({ playing }) {
+    const button = element.querySelector('[data-action="play"]');
+    button.textContent = playing ? 'Pause' : 'Play';
+    button.setAttribute('aria-label', `${playing ? 'Pause' : 'Play'} voyage preview`);
+  }
+  function updateNotices({ available, active }) {
+    const toggle = element.querySelector('[data-overlay="restrictions"]');
+    toggle.disabled = !available;
+    if (!available) toggle.checked = false;
+    element.querySelector('[data-role="restriction-note"]').textContent = available ? `${active} active supplied notices` : 'Verified data unavailable';
+  }
+  element.querySelector('[data-role="voyage-progress"]').addEventListener('input', (event) => {
+    flat?.seekVoyage(Number(event.target.value) / 1000);
+  });
   element.addEventListener('change', (event) => {
     if (event.target.dataset.overlay) flat?.setOverlay(event.target.dataset.overlay, event.target.checked);
+    if (event.target.dataset.overlay === 'waves') element.querySelector('[data-role="wave-scale"]').hidden = !event.target.checked;
   });
   element.addEventListener('click', (event) => {
     const action = event.target.closest('button[data-action]')?.dataset.action;
@@ -59,9 +117,13 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
     if (action === 'zoom-in') flat?.zoomBy(0.6);
     if (action === 'zoom-out') flat?.zoomBy(-0.6);
     if (action === 'fit') flat?.fitRoute();
+    if (action === 'play') flat?.togglePlayback();
+    if (action === 'restart') flat?.restartPlayback();
   });
   function render(route) {
     const report = getReport();
+    activeReport = report;
+    lastUiTick = 0;
     const origin = reportPort(report, 'origin');
     const destination = reportPort(report, 'destination');
     const text = (role, value) => { element.querySelector(`[data-role="${role}"]`).textContent = value; };
@@ -74,7 +136,16 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
     element.querySelector('[data-overlay="alternates"]').checked = false;
     flat?.setOverlay('alternates', false);
     flat?.setAlternates(getRoutes().filter((candidate) => candidate.id !== route.id));
-    flat?.showRoute(route, { origin, destination });
+    const waveToggle = element.querySelector('[data-overlay="waves"]');
+    waveToggle.disabled = !validWaveGrid(report.waveGrid);
+    waveToggle.checked = !waveToggle.disabled;
+    const hazardToggle = element.querySelector('[data-overlay="hazards"]');
+    hazardToggle.disabled = waveToggle.disabled;
+    hazardToggle.checked = !hazardToggle.disabled;
+    element.querySelector('[data-overlay="restrictions"]').checked = true;
+    element.querySelector('[data-role="wave-scale"]').hidden = waveToggle.disabled;
+    flat?.setActive(true);
+    flat?.showRoute(route, { origin, destination, departureTime: report.departureTime, waveGrid: report.waveGrid, overlays: report.overlays });
   }
   return {
     element, showGlobe: false,
@@ -82,12 +153,13 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
       const status = element.querySelector('.map-status');
       if (!flat) {
         status.textContent = 'Loading map…';
-        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; } }); }
+        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onVoyageTick: updateVoyage, onPlaybackState: updatePlayback, onNotices: updateNotices }); }
         catch { status.textContent = 'Map rendering is unavailable in this browser. Route estimates are shown below.'; }
       }
       flat?.resize();
       const route = findRoute(getSelectedRouteId());
       if (route) render(route);
-    }
+    },
+    leave() { flat?.setActive(false); }
   };
 }

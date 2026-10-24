@@ -565,11 +565,12 @@ body {
   cursor: grabbing;
 }
 
-/* Mapbox renders empty control containers bottom-right (this style has no
-   attributed sources). They read as stray floating boxes, so they are hidden
-   and the credit is carried as real text in .detail__credit instead. */
+/* Mapbox Light carries Mapbox/OSM attribution. Keep its live credit links and
+   logo visible in the gutter below the route footer. */
+.detail .mapboxgl-ctrl-bottom-left,
 .detail .mapboxgl-ctrl-bottom-right {
-  display: none !important;
+  display: block !important;
+  z-index: 3;
 }
 
 /* One column, one gutter, three bands: header, middle row, info strip.
@@ -649,6 +650,13 @@ body {
 }
 
 .line--accent { background: var(--accent-primary); }
+.line--hazard { background: transparent; border-top: 1px dashed var(--hazard-high); }
+
+.hazard-popup .mapboxgl-popup-content { border-radius: 0; box-shadow: none; border: 1px solid var(--hairline); padding: 18px; background: var(--bg); }
+.hazard-card { font: 11px / 1.6 var(--font-mono); color: var(--text); }
+.hazard-card strong { color: var(--hazard-severe); font-weight: 500; }
+.hazard-card p { margin: 8px 0 0; }
+.hazard-card a { display: inline-block; margin-top: 8px; color: var(--hazard-restricted); }
 
 /* Overlay toggles and zoom, stacked right-aligned in the same column. */
 /* Sized from the container, never from a fixed offset, so the panel cannot
@@ -728,8 +736,7 @@ body {
   background: var(--bg);
 }
 
-/* Footer band: one opaque block so neither the figures nor the credit line
-   have to compete with land dots drawn behind them. */
+/* Footer band: one opaque block so figures remain readable over the map. */
 .detail__footer {
   display: flex;
   flex-direction: column;
@@ -844,3 +851,39 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 
 .detail__head > .button, .legend { background: var(--bg); }
 .legend { padding: var(--space-2); }
+
+/* Forecast colour stays quiet; the route and ship stay in the foreground. */
+.wave-scale { display: flex; flex-direction: column; gap: var(--space-1); margin: var(--space-1) 0 var(--space-2); }
+.wave-scale__ramp {
+  height: var(--wave-scale-height);
+  background: linear-gradient(90deg, var(--wave-0), var(--wave-1), var(--wave-2), var(--wave-3), var(--wave-4), var(--wave-5));
+  opacity: 0.6;
+}
+.wave-scale__labels { display: flex; justify-content: space-between; color: var(--text); }
+.wave-scale[data-available="false"] .wave-scale__ramp { opacity: 0.15; }
+.voyage-timeline { display: flex; flex-direction: column; gap: var(--space-2); }
+.voyage-timeline__head, .voyage-timeline__track { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.voyage-timeline__head { flex-wrap: wrap; gap: var(--space-1); }
+.voyage-timeline__head .mono-label { color: var(--text); }
+.voyage-timeline__track .button { height: var(--control-height-sm); flex-shrink: 0; }
+.voyage-timeline__position { margin: 0; }
+.voyage-timeline input[type="range"] {
+  appearance: none; flex: 1; min-width: 0; height: var(--voyage-progress-height);
+  background: var(--hairline); cursor: pointer; accent-color: var(--accent-primary);
+}
+.voyage-timeline input[type="range"]::-webkit-slider-thumb { appearance: none; width: var(--voyage-progress-thumb); height: var(--voyage-progress-thumb); border: 0; background: var(--accent-primary); }
+.voyage-timeline input[type="range"]::-moz-range-thumb { width: var(--voyage-progress-thumb); height: var(--voyage-progress-thumb); border: 0; border-radius: 0; background: var(--accent-primary); }
+.voyage-timeline input[type="range"]:focus-visible { outline: var(--border-width) solid var(--accent-primary); outline-offset: var(--focus-offset); }
+.voyage-ship { width: var(--voyage-ship-width); height: var(--voyage-ship-height); z-index: 1; }
+.voyage-ship, .voyage-ship * { pointer-events: none; }
+.voyage-ship__heading, .voyage-ship svg { width: 100%; height: 100%; display: block; }
+.voyage-ship__heading { transform-origin: center; will-change: transform; }
+.voyage-ship__hull { fill: var(--text); stroke: var(--accent-primary); stroke-width: 1.6; stroke-linejoin: round; }
+.voyage-ship__deck { fill: none; stroke: var(--bg); stroke-width: 1.5; }
+.voyage-ship__wake { fill: none; stroke: var(--accent-primary); stroke-width: 1.2; opacity: 0.25; stroke-linecap: round; }
+.voyage-ship[data-waiting="true"] .voyage-ship__wake { opacity: 0; }
+.detail .dot--vessel { background: var(--text); border: var(--border-width) solid var(--accent-primary); }
+@media (max-width: 760px) {
+  .voyage-timeline__track { gap: var(--space-2); }
+  .wave-scale__labels { font-size: var(--font-size-11); }
+}

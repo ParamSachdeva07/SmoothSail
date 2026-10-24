@@ -135,11 +135,21 @@ class GridForecast:
             result[missing] = values
         return result
 
-    def wave_grid(self, bounds, departure):
+    def global_wave_grid(self, departure):
+        fields = self.fields.get('wave', [])
+        if not fields:
+            return None
+        # Spend display rows on the latitude range actually in the cache, rather
+        # than empty polar space. Half-degree longitude spacing preserves small
+        # seas and coastal cells that the former 1.4-degree overview discarded.
+        south = max(-85, math.floor(min(field.axes[1][0] for field in fields)))
+        north = min(85, math.ceil(max(field.axes[1][-1] for field in fields)))
+        return self.wave_grid((-180, south, 180, north), departure, columns=721, rows=257)
+
+    def wave_grid(self, bounds, departure, *, columns=128, rows=64):
         if not self.fields.get('wave'):
             return None
         west, south, east, north = bounds
-        columns, rows = 128, 64
         # Uniform Mercator rows keep the raster geographically aligned with map textures.
         mercator = lambda lat: math.asinh(math.tan(math.radians(lat)))
         latitudes = np.degrees(np.arctan(np.sinh(np.linspace(mercator(north), mercator(south), rows))))
@@ -150,8 +160,12 @@ class GridForecast:
             valid_at = departure + timedelta(hours=hours)
             values = self.sample_many('wave', lons.ravel(), lats.ravel(),
                                       np.full(lons.size, valid_at.timestamp()))
-            frames.append({'hour': hours, 'validAt': valid_at.isoformat(),
-                           'values': [round(float(value), 2) if np.isfinite(value) else None for value in values]})
+            # Vectorized conversion keeps the denser display from adding a slow
+            # Python per-cell loop. JSON still contains metres or explicit null.
+            serializable = np.round(values, 2).astype(object)
+            serializable[~np.isfinite(values)] = None
+            frames.append({'hour': hours, 'validAt': valid_at.isoformat(), 'values': serializable.tolist()})
         return {'bounds': list(bounds), 'columns': columns, 'rows': rows, 'projection': 'mercator',
+                'scope': 'global' if east - west >= 359.99 else 'regional',
                 'rowOrder': 'north_to_south', 'units': 'm', 'frames': frames,
                 'interpretation': 'Interpolated forecast display; not additional observations or storm boundaries. Null is unknown.'}

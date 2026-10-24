@@ -154,3 +154,26 @@ def test_current_components_fall_back_as_one_vector_not_mixed_snapshots(tmp_path
     values, sources = GridForecast(entries, now).sample_with_provenance(-19, 41, now)
     assert (values['u'], values['v']) == (2, 3)
     assert sources == {'u': 'coarse', 'v': 'coarse'}
+
+
+def test_global_display_includes_distant_oceans_and_wraps_without_filling_unknowns(tmp_path):
+    _, meta, now = grid_file(tmp_path)
+    values = np.full((2, 2, 6), 5.0)
+    values[1] = 7
+    values[:, :, 3] = np.nan  # A genuine gap at Greenwich, not calm water.
+    ds = xr.Dataset({'wave': (['time', 'lat', 'lon'], values, {'units': 'm'})},
+                    coords={'time': np.array(['2026-10-24T00', '2026-10-24T06'], dtype='datetime64[ns]'),
+                            'lat': [-60, 70], 'lon': [-180, -120, -60, 0, 60, 120]})
+    path = tmp_path / 'global-display.nc'
+    ds.to_netcdf(path, engine='scipy')
+    grid = GridForecast([(path, meta)], now).wave_grid((-180, -80, 180, 80), now, columns=13, rows=9)
+    assert grid['scope'] == 'global'
+    first = np.array(grid['frames'][0]['values']).reshape(9, 13)
+    # Both sides of the world, not a crop around any particular route.
+    assert first[4, 2] == first[4, 10] == 5
+    assert first[4, 0] == first[4, -1] == 5
+    assert first[4, 6] is None
+    assert all(value is None for value in first[0])
+    assert all(value is None for value in first[-1])
+    assert grid['frames'][1]['values'][4 * 13 + 2] == 7
+    assert all(value is None for frame in grid['frames'][2:] for value in frame['values'])

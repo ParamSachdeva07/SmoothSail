@@ -4,6 +4,7 @@ import secrets
 
 from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse
+from starlette.middleware.gzip import GZipMiddleware
 from pymongo.errors import PyMongoError
 
 from service.config import settings
@@ -40,6 +41,8 @@ async def lifespan(app):
 
 
 app = FastAPI(title='Tideline', version='0.1.0', lifespan=lifespan)
+# Forecast frames compress well; keep global coastal detail affordable to send.
+app.add_middleware(GZipMiddleware, minimum_size=2048, compresslevel=1)
 
 
 @app.get('/route-schema')

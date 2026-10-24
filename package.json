@@ -11,7 +11,9 @@
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "mapbox-gl": "^3.17.0"
+    "d3-contour": "^4.0.2",
+    "mapbox-gl": "^3.17.0",
+    "polylabel": "^2.1.0"
   },
   "devDependencies": {
     "vite": "^6.4.1"

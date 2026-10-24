@@ -9,13 +9,21 @@
 :root {
   /* --- Surface + text --------------------------------------------------- */
   --bg: #FAFAFA;                 /* page background (off-white, never pure white) */
-  --text: #0A0A0A;               /* primary text; also the flat 2D map's land dots */
+  --text: #0A0A0A;               /* primary text */
   --text-secondary: #9A9A9A;     /* secondary / disabled text */
   --hairline: #E0E0E0;           /* 1px borders — the only panel treatment */
 
   /* --- Globe ------------------------------------------------------------ */
   --globe-sphere: #0800FF;
   --globe-dots: #0CFD03;         /* land dots, and the wind streamlines */
+
+  /* --- Selected-route basemap ------------------------------------------ */
+  --map-water: #F0F3F4;
+  --map-coast: #CDD6D8;
+  --map-label: #8A959A;
+  --hazard-high: #B07857;
+  --hazard-severe: #AD6068;
+  --hazard-restricted: #8C6477;
 
   /* --- Vessel ----------------------------------------------------------- */
   --vessel: #FF0F13;
@@ -94,7 +102,7 @@
   --control-height-sm: 36px;         /* square icon-only buttons */
   --panel-width-search: 360px;       /* screen 2 left column */
   --form-width-max: 320px;           /* form inside that column */
-  --panel-width-overlays: 184px;     /* screen 4 overlay toggles */
+  --panel-width-overlays: 216px;     /* screen 4 overlay toggles */
   --card-summary-height: 112px;      /* fixed, so cards stay equal height */
   --options-max-height: 232px;       /* port dropdown before it scrolls */
   --status-width-max: 420px;
@@ -111,4 +119,20 @@
   :root {
     --gutter: var(--gutter-compact);
   }
+}
+
+:root {
+  /* Forecast display: muted sea-glass, sand and rose, feathered into the map. */
+  --wave-0: #7eb0bf;
+  --wave-1: #69aab4;
+  --wave-2: #97baa8;
+  --wave-3: #d2bb86;
+  --wave-4: #d6967b;
+  --wave-5: #b7707e;
+  --wave-scale-height: 7px;
+  --voyage-preview-duration: 90000ms;
+  --voyage-ship-width: 36px;
+  --voyage-ship-height: 52px;
+  --voyage-progress-height: 3px;
+  --voyage-progress-thumb: 11px;
 }

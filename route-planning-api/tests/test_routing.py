@@ -112,6 +112,7 @@ def test_agent_metadata_preserves_evidence_without_claiming_compliance():
     repo = Repository(Settings(tideline_mode='demo', mongodb_password='do-not-export-this'))
     notice = {'id': 'channel-advisory', 'name': 'Test advisory', 'action': 'review', 'verified': True,
               'passageId': 'English Channel', 'validFrom': DEPARTURE.isoformat(),
+              'geometry': {'type': 'Polygon', 'coordinates': [[[-6, 49], [2, 49], [2, 51], [-6, 51], [-6, 49]]]},
               'validTo': (DEPARTURE + timedelta(days=30)).isoformat(), 'sourceUrl': 'https://example.invalid/notice'}
     repo.restrictions = lambda: [notice]
     request = RouteRequest(origin='NLRTM', destination='PTLIS', departure_time=DEPARTURE,
@@ -125,6 +126,10 @@ def test_agent_metadata_preserves_evidence_without_claiming_compliance():
     assert result.metadata.vessel_model['loadedDraftM'] == 10.5
     assert result.metadata.ports['origin'].country_code == 'NL'
     assert result.metadata.restriction_catalog[0].source_url == notice['sourceUrl']
+    display_notice = next(f['properties'] for f in result.overlays['features'] if f['properties'].get('id') == notice['id'])
+    assert display_notice['verified'] is True
+    assert display_notice['sourceUrl'] == notice['sourceUrl']
+    assert display_notice['validTo'] == notice['validTo']
     assert 'do-not-export-this' not in result.model_dump_json()
     snapshots = {source['snapshotId'] for source in result.sources}
     for route in result.routes:

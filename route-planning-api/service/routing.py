@@ -157,15 +157,14 @@ def _calculate(request, repository, started):
         overlays = forecast.overlays()
     else:
         overlays = {'type': 'FeatureCollection', 'features': []}
-        # Cover evaluated alternatives, including a canal bypass, not just the shortest baseline.
-        all_coords = [graph.nodes[node]['coordinates'] for path in paths for node in path]
-        bounds = (max(-180, min(p[0] for p in all_coords) - 5), max(-80, min(p[1] for p in all_coords) - 5),
-                  min(180, max(p[0] for p in all_coords) + 5), min(80, max(p[1] for p in all_coords) + 5))
-        wave_grid = forecast.wave_grid(bounds, departure)
+        # Display all available cached forecasts, including oceans away from the
+        # chosen route. This does not fetch more data or change routing samples.
+        # Unknown polar/coastal cells and times remain null.
+        wave_grid = forecast.global_wave_grid(departure)
     for notice in restrictions:
         if notice.get('geometry'):
             overlays['features'].append({'type': 'Feature', 'geometry': notice['geometry'],
-                                         'properties': {key: notice[key] for key in ['id', 'name', 'validFrom', 'validTo', 'action'] if key in notice} | {'kind': 'restriction'}})
+                                         'properties': {key: notice[key] for key in ['id', 'name', 'validFrom', 'validTo', 'action', 'verified', 'cancelled', 'sourceUrl'] if key in notice} | {'kind': 'restriction'}})
     phase('waveDisplay')
     check_deadline(deadline)
     notices = repository.activity_notices([origin, destination])
