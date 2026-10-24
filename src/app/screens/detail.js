@@ -2,7 +2,7 @@ import { icon } from '../icons.js';
 import { createFlatMap } from '../../globe/flatmap.js';
 import { getReport, getRoutes, findRoute, reportPort, formatDuration, formatNm, formatUsd, coverageLabel, formatNumber } from '../../data/routes.js';
 import { formatEta } from '../../data/shipment.js';
-import { validWaveGrid, framePair, waveAt } from '../../globe/waves.js';
+import { validWaveGrid, waveAt } from '../../globe/waves.js';
 
 export function createDetailScreen({ getSelectedRouteId, onBack }) {
   const element = document.createElement('section');
@@ -74,6 +74,13 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
   let flat = null;
   let activeReport = null;
   let lastUiTick = 0;
+  const waveNote = element.querySelector('[data-role="wave-note"]');
+  const waveScale = element.querySelector('[data-role="wave-scale"]');
+  function updateWaveState({ status, held, validAt }) {
+    waveNote.textContent = status === 'loading' ? 'Preparing wave display…' : status === 'error' ? 'Wave display unavailable' :
+      status === 'unavailable' ? 'Forecast unavailable' : held ? `Forecast · ${formatEta(validAt)} · held` : 'Significant wave height';
+    waveScale.dataset.available = String(status === 'ready');
+  }
   function updateVoyage({ hour, duration, coordinates, kind, waveHeightM }) {
     const slider = element.querySelector('[data-role="voyage-progress"]');
     slider.value = String(duration ? hour / duration * 1000 : 0);
@@ -88,10 +95,6 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
     const phase = hour >= duration ? 'Arrived at approach' : kind === 'canal_wait' ? 'Assumed canal wait' : kind === 'canal_transit' ? 'Canal transit' : 'Sailing';
     const sample = height !== null ? `${height.toFixed(1)} m waves here` : Number.isFinite(waveHeightM) ? `${waveHeightM.toFixed(1)} m waves · route sample` : 'Wave height here unavailable';
     element.querySelector('[data-role="voyage-position"]').textContent = `${phase} · ${sample} · Simulated position`;
-    const pair = grid ? framePair(grid, hour) : null;
-    const hasData = pair && grid.frames[pair.a].values.some((v, i) => Number.isFinite(v) && Number.isFinite(grid.frames[pair.b].values[i]));
-    element.querySelector('[data-role="wave-note"]').textContent = hasData ? 'Significant wave height' : 'No forecast at this time';
-    element.querySelector('[data-role="wave-scale"]').dataset.available = String(Boolean(hasData));
   }
   function updatePlayback({ playing }) {
     const button = element.querySelector('[data-action="play"]');
@@ -153,7 +156,7 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
       const status = element.querySelector('.map-status');
       if (!flat) {
         status.textContent = 'Loading map…';
-        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onVoyageTick: updateVoyage, onPlaybackState: updatePlayback, onNotices: updateNotices }); }
+        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onVoyageTick: updateVoyage, onPlaybackState: updatePlayback, onNotices: updateNotices, onWaveState: updateWaveState }); }
         catch { status.textContent = 'Map rendering is unavailable in this browser. Route estimates are shown below.'; }
       }
       flat?.resize();

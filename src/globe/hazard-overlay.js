@@ -19,7 +19,9 @@ export function createHazardOverlay(map, { beforeLayer, onNotices = () => {} }) 
   add('hazards', { id: 'sea-hazard-glow', type: 'line', source: 'sea-hazards', filter: polygon,
     paint: { 'line-color': seaColor, 'line-width': 5, 'line-blur': 3, 'line-opacity': 0.16 } });
   add('hazards', { id: 'sea-hazard-line', type: 'line', source: 'sea-hazards', filter: polygon,
-    layout: { 'line-join': 'round' }, paint: { 'line-color': seaColor, 'line-width': 1.1, 'line-opacity': 0.8, 'line-dasharray': [4, 3] } });
+    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': seaColor,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.9, 4, 1.1, 8, 1.5],
+      'line-opacity': 0.8, 'line-dasharray': [4, 3] } });
   const labelLayout = { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
     'text-size': 10, 'text-letter-spacing': 0.1, 'text-transform': 'uppercase', 'text-padding': 18 };
   add('hazards', { id: 'sea-hazard-label', type: 'symbol', source: 'sea-hazards', filter: ['==', ['geometry-type'], 'Point'],
