@@ -32,7 +32,7 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
             <label class="toggle"><input type="checkbox" data-overlay="restrictions" disabled><span>Restricted areas</span></label>
             <p class="toggles__note mono-label" data-role="restriction-note">Data unavailable</p>
             <label class="toggle"><input type="checkbox" data-overlay="alternates"><span>Other routes</span></label>
-            <p class="toggles__note mono-label">Click an area for details</p>
+            <p class="toggles__note mono-label">Click a restricted area for details</p>
           </div>
         </div>
       </div>
@@ -60,6 +60,13 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
       </div>
     </div>`;
   let flat = null;
+  const waveNote = element.querySelector('[data-role="wave-note"]');
+  const waveScale = element.querySelector('[data-role="wave-scale"]');
+  function updateWaveState({ status, held, validAt }) {
+    waveNote.textContent = status === 'loading' ? 'Preparing wave display…' : status === 'error' ? 'Wave display unavailable' :
+      status === 'unavailable' ? 'Forecast unavailable' : held ? `Forecast · ${formatEta(validAt)} · held` : 'Significant wave height';
+    waveScale.dataset.available = String(status === 'ready');
+  }
   function updatePlayback({ playing, hour = 0, duration = 0, speed = 1 }) {
     const button = element.querySelector('[data-action="preview"]');
     const label = playing ? 'Pause' : hour >= duration && hour > 0 ? 'Replay' : hour > 0 ? 'Resume' : 'Preview';
@@ -121,7 +128,7 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
       const status = element.querySelector('.map-status');
       if (!flat) {
         status.textContent = 'Loading map…';
-        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onPlaybackState: updatePlayback, onNotices: updateNotices }); }
+        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onPlaybackState: updatePlayback, onNotices: updateNotices, onWaveState: updateWaveState }); }
         catch { status.textContent = 'Map rendering is unavailable in this browser. Route estimates are shown below.'; }
       }
       flat?.resize();

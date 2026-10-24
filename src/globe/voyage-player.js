@@ -2,7 +2,7 @@ import mapboxgl from 'mapbox-gl';
 import { createVoyageTrack } from './voyage.js';
 import { cssDurationMs } from '../settings.js';
 
-export function createVoyagePlayer(map, { onTick = () => {}, onState = () => {} }) {
+export function createVoyagePlayer(map, { onTick = () => {}, onTime = () => {}, onState = () => {} }) {
   const element = document.createElement('div');
   element.className = 'voyage-ship';
   element.setAttribute('aria-label', 'Simulated vessel position');
@@ -28,6 +28,7 @@ export function createVoyagePlayer(map, { onTick = () => {}, onState = () => {} 
       headingElement.style.transform = `rotate(${heading}deg)`;
     }
     marker.setLngLat(a);
+    onTime(hour, force);
     element.dataset.waiting = String(position.kind === 'canal_wait');
     const now = performance.now();
     if (force || now - lastTick >= 80) {

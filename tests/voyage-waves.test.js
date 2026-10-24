@@ -1,7 +1,8 @@
+import { renderWaveFrame, waveQuad } from '../src/globe/wave-texture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createVoyageTrack } from '../src/globe/voyage.js';
-import { bilinear, framePair, waveAt, renderWavePair, validWaveGrid } from '../src/globe/waves.js';
+import { bilinear, framePair, waveAt, validWaveGrid, waveDisplayTime, waveDisplayGrid } from '../src/globe/waves.js';
 
 const departure = '2026-10-24T00:00:00Z';
 const date = (hour) => new Date(Date.parse(departure) + hour * 3_600_000).toISOString();
@@ -45,56 +46,65 @@ test('forecast sampling interpolates in space/time but never extrapolates or tre
   assert.equal(bilinear([0, null, 0, 0], 2, 2, 0.5, 0.5), null);
 });
 
-test('wave raster has a bounded soft halo while numeric missing data and large gaps stay unknown', () => {
+test('holding a dated display snapshot does not extend numerical forecast coverage', () => {
   const data = grid();
-  const [tile] = renderWavePair(data, { a: 0, b: 1 }, { scale: 4 });
-  const alpha = (x, y) => tile.pixels[0][(y * tile.width + x) * 4 + 3];
-  assert.equal(alpha(0, 18), 0);
-  assert.ok(alpha(4, 18) > 0 && alpha(4, 18) < alpha(8, 18));
-  // The display may fade a few pixels across a coverage edge. It must not
-  // manufacture numeric samples, or fill the interior of a large data gap.
-  for (let y = 2; y <= 7; y++) for (let x = 2; x <= 7; x++) data.frames[0].values[y * data.columns + x] = null;
-  assert.equal(waveAt(data, 0, [0, 0]), null);
-  const hole = renderWavePair(data, { a: 0, b: 1 }, { scale: 4 })[0];
-  assert.equal(hole.pixels[0][(18 * hole.width + 18) * 4 + 3], 0);
-  assert.equal(hole.pixels[1][(18 * hole.width + 18) * 4 + 3], 0);
+  data.frames.forEach(frame => { frame.validAt = date(frame.hour); });
+  assert.deepEqual(waveDisplayTime(data, 30), { hour: 6, held: 'last', validAt: date(6) });
+  assert.deepEqual(waveDisplayTime(data, -1), { hour: 0, held: 'first', validAt: date(0) });
+  assert.deepEqual(waveDisplayTime(data, 3), { hour: 3, held: null, validAt: null });
+  assert.equal(waveAt(data, 30, [0, 0]), null);
+  assert.equal(waveDisplayTime(null, 3), null);
 });
 
-test('wide wave rasters use matching seam pixels and quads narrower than 180 degrees', () => {
-  const data = grid(20); data.bounds = [-180, -60, 180, 60];
-  const tiles = renderWavePair(data, { a: 0, b: 1 });
-  assert.equal(tiles.length, 3);
-  for (let i = 0; i < tiles.length - 1; i++) {
-    const left = tiles[i], right = tiles[i + 1];
-    assert.ok(left.coordinates[1][0] - left.coordinates[0][0] < 180);
-    assert.equal(left.coordinates[1][0], right.coordinates[0][0]);
-    for (let y = 0; y < left.height; y++) {
-      const edge = (y * left.width + left.width - 1) * 4;
-      assert.deepEqual(left.pixels[0].slice(edge, edge + 4), right.pixels[0].slice(y * right.width * 4, y * right.width * 4 + 4));
-    }
-  }
-  const first = tiles[0], last = tiles.at(-1), y = Math.floor(first.height / 2);
-  const leftOffset = y * first.width * 4, rightOffset = (y * last.width + last.width - 1) * 4;
-  assert.ok(first.pixels[0][leftOffset + 3] > 0, 'the Pacific date line must not have an artificial transparent seam');
-  assert.deepEqual(first.pixels[0].slice(leftOffset, leftOffset + 4), last.pixels[0].slice(rightOffset, rightOffset + 4));
-
-  // Missing data on one side must feather consistently on the other side too.
-  for (let row = 0; row < data.rows; row++) data.frames[0].values[row * data.columns + data.columns - 2] = null;
-  const masked = renderWavePair(data, { a: 0, b: 1 });
-  assert.ok(masked[0].pixels[0][leftOffset + 3] < first.pixels[0][leftOffset + 3]);
-  assert.equal(masked[0].pixels[0][leftOffset + 3], masked.at(-1).pixels[0][rightOffset + 3]);
+test('the held snapshot is the last populated forecast, not an empty padded time step', () => {
+  const data = grid();
+  data.frames.push({ hour: 12, values: Array(100).fill(null) }, { hour: 18, values: Array(100).fill(null) });
+  const display = waveDisplayGrid(data);
+  assert.equal(waveDisplayTime(display, 30).hour, 6);
+  assert.equal(data.frames.length, 4);
+  data.frames[3].values[0] = 3;
+  assert.equal(waveDisplayTime(waveDisplayGrid(data), 30).hour, 6, 'a sparse regional tail must not blank the global display');
+  data.frames[0].values.fill(null);
+  assert.equal(waveDisplayGrid(data).frames[0].hour, 6);
+  data.frames[3].values.fill(2);
+  assert.equal(waveDisplayGrid(data).frames.length, 3, 'preserve the internal missing frame');
+  assert.equal(waveAt(waveDisplayGrid(data), 12, [0, 0]), null);
+  data.frames.forEach(frame => frame.values.fill(null));
+  assert.equal(waveDisplayGrid(data), null);
 });
 
-test('narrow seas retain visible forecast colour next to missing coastal cells', () => {
+test('native wave texture keeps missing data numeric and large holes transparent', () => {
   const data = grid(20);
-  for (const frame of data.frames) {
-    frame.values = frame.values.map((v, i) => [9, 10].includes(Math.floor(i / data.columns)) ? v : null);
-  }
-  const [tile] = renderWavePair(data, { a: 0, b: 1 }, { scale: 4 });
-  const alpha = (x, y) => tile.pixels[0][(y * tile.width + x) * 4 + 3];
-  // Two valid rows form a narrow strip of sea. Previously its opacity was zero.
-  assert.ok(alpha(38, 38) >= 25, 'the blurred field must retain visible colour in a narrow sea');
-  assert.equal(alpha(38, 24), 0);
-  assert.equal(alpha(38, 52), 0);
-  assert.equal(waveAt(data, 0, [0, 10]), null, 'visual fading must not create numeric forecast coverage');
+  const frame = renderWaveFrame(data, data.frames[0].values);
+  assert.equal(frame.pixels.byteLength, 20 * 20 * 4);
+  const alpha = (image, x, y) => image.pixels[(y * image.width + x) * 4 + 3];
+  assert.equal(alpha(frame, 0, 10), 0);
+  assert.ok(alpha(frame, 1, 10) > 0 && alpha(frame, 1, 10) < alpha(frame, 3, 10));
+  for (let y = 5; y <= 14; y++) for (let x = 5; x <= 14; x++) data.frames[0].values[y * 20 + x] = null;
+  const hole = renderWaveFrame(data, data.frames[0].values);
+  assert.equal(alpha(hole, 10, 10), 0);
+  assert.equal(waveAt(data, 0, [0, 0]), null);
+  // Stored colours must be premultiplied, to blend correctly without dark seams.
+  for (let i = 0; i < frame.pixels.length; i += 4) for (let c = 0; c < 3; c++) assert.ok(frame.pixels[i + c] <= frame.pixels[i + 3]);
+});
+
+test('native textures wrap seamlessly at the date line, including missing coastal samples', () => {
+  const data = grid(20); data.bounds = [-180, -60, 180, 60];
+  for (let row = 0; row < 20; row++) data.frames[0].values[row * 20 + 18] = null;
+  const { pixels } = renderWaveFrame(data, data.frames[0].values);
+  for (let row = 0; row < 20; row++) assert.deepEqual(pixels.slice(row * 80, row * 80 + 4), pixels.slice(row * 80 + 76, row * 80 + 80));
+  assert.ok(pixels[10 * 80 + 3] > 0);
+  const quad = waveQuad(data.bounds, 20, 20);
+  near(quad[0], 0); near(quad[8], 1);
+  near(quad[2], 0.025); near(quad[10], 0.975);
+  assert.ok(quad[1] < quad[5]);
+});
+
+test('native texture retains narrow seas and does not fill distant data gaps', () => {
+  const data = grid(20);
+  const values = data.frames[0].values.map((v, i) => [9, 10].includes(Math.floor(i / 20)) ? v : null);
+  const frame = renderWaveFrame(data, values);
+  const alpha = y => frame.pixels[(y * 20 + 10) * 4 + 3];
+  assert.ok(alpha(9) >= 25);
+  assert.equal(alpha(5), 0); assert.equal(alpha(14), 0);
 });

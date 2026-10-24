@@ -1,5 +1,4 @@
 // Display interpolation only. Unknown samples never become zero-height waves.
-const smoothstep = (x) => { const t = Math.max(0, Math.min(1, x)); return t * t * (3 - 2 * t); };
 const mercator = (lat) => Math.asinh(Math.tan(lat * Math.PI / 180));
 export const DEFAULT_WAVE_RAMP = [
   [0, 126, 176, 191, 70], [1, 105, 170, 180, 95], [2, 151, 186, 168, 120],
@@ -20,6 +19,27 @@ export function framePair(grid, hour) {
   const upper = frames.findIndex((frame) => frame.hour >= hour);
   if (frames[upper].hour === hour) return { a: upper, b: upper, mix: 0 };
   return { a: upper - 1, b: upper, mix: (hour - frames[upper - 1].hour) / (frames[upper].hour - frames[upper - 1].hour) };
+}
+// Display only: hold an explicitly dated snapshot when the ship travels beyond
+// forecast coverage. waveAt() and route estimates never use this clamped time.
+export function waveDisplayTime(grid, hour) {
+  if (!grid || !Number.isFinite(hour)) return null;
+  const first = grid.frames[0], last = grid.frames.at(-1);
+  if (hour < first.hour) return { hour: first.hour, held: 'first', validAt: first.validAt };
+  if (hour > last.hour) return { hour: last.hour, held: 'last', validAt: last.validAt };
+  return { hour, held: null, validAt: null };
+}
+export function waveDisplayGrid(grid) {
+  if (!validWaveGrid(grid)) return null;
+  const counts = grid.frames.map(frame => frame.values.reduce((sum, value) => sum + (Number.isFinite(value) && value >= 0 ? 1 : 0), 0));
+  const peak = Math.max(...counts);
+  if (!peak) return null;
+  // The global provider may end before a tiny regional supplement. Hold the
+  // last broadly covered snapshot (>= half the peak coverage), not a nearly
+  // empty regional tail. This selection is purely for the global display.
+  const first = counts.findIndex(count => count >= peak / 2), last = counts.findLastIndex(count => count >= peak / 2);
+  // Trim only the ends; an interior missing frame is not interpolated away.
+  return first < 0 ? null : { ...grid, frames: grid.frames.slice(first, last + 1) };
 }
 export function bilinear(values, columns, rows, x, y) {
   if (x < 0 || y < 0 || x > columns - 1 || y > rows - 1) return null;
@@ -47,17 +67,6 @@ export function waveAt(grid, hour, [longitude, latitude]) {
   return a === null || b === null ? null : a + (b - a) * pair.mix;
 }
 
-// Only supported interpolation cells seed the display raster. The separate
-// blur below rounds their coverage boundary without modifying the source grid.
-function supportMask(valid, columns, rows) {
-  const width = columns - 1, height = rows - 1;
-  const quads = new Uint8Array(width * height);
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    const i = y * columns + x;
-    quads[y * width + x] = valid[i] && valid[i + 1] && valid[i + columns] && valid[i + columns + 1] ? 1 : 0;
-  }
-  return (x, y) => quads[Math.min(height - 1, Math.floor(y)) * width + Math.min(width - 1, Math.floor(x))];
-}
 export function waveColor(value, ramp = DEFAULT_WAVE_RAMP) {
   if (!Number.isFinite(value)) return [0, 0, 0, 0];
   let upper = ramp.findIndex((stop) => stop[0] >= value);
@@ -65,103 +74,4 @@ export function waveColor(value, ramp = DEFAULT_WAVE_RAMP) {
   const b = ramp[upper], a = ramp[Math.max(0, upper - 1)];
   const f = a[0] === b[0] ? 0 : Math.min(1, Math.max(0, (value - a[0]) / (b[0] - a[0])));
   return a.slice(1).map((v, i) => v + (b[i + 1] - v) * f);
-}
-
-// Blur premultiplied display colours across coverage edges. Numeric sampling
-// remains strict in waveAt(); this small visual halo is clipped by the map's
-// independent coastline mask. Three box passes approximate a Gaussian filter.
-function softenRaster(tiles, scale, wrap) {
-  const width = tiles.reduce((sum, tile) => sum + tile.width - 1, 0) + (wrap ? 0 : 1);
-  const height = tiles[0].height, radius = Math.max(1, Math.round(scale * 0.65));
-  const size = width * height * 4, divisor = radius * 2 + 1;
-  const input = new Float32Array(size), horizontal = new Float32Array(size), output = new Float32Array(size);
-  const sx = (x) => wrap ? ((x % width) + width) % width : x;
-  for (let frame = 0; frame < 2; frame++) {
-    input.fill(0);
-    let start = 0;
-    for (const tile of tiles) {
-      const pixels = tile.pixels[frame];
-      for (let y = 0; y < height; y++) for (let x = 0; x < tile.width; x++) {
-        const gx = sx(start + x);
-        if (gx >= width) continue;
-        const from = (y * tile.width + x) * 4, to = (y * width + gx) * 4, alpha = pixels[from + 3];
-        input[to] = pixels[from] * alpha / 255;
-        input[to + 1] = pixels[from + 1] * alpha / 255;
-        input[to + 2] = pixels[from + 2] * alpha / 255;
-        input[to + 3] = alpha;
-      }
-      start += tile.width - 1;
-    }
-    let source = input;
-    for (let pass = 0; pass < 3; pass++) {
-      for (let y = 0; y < height; y++) for (let c = 0; c < 4; c++) {
-        let sum = 0;
-        for (let k = -radius; k <= radius; k++) {
-          const x = sx(k);
-          if (x >= 0 && x < width) sum += source[(y * width + x) * 4 + c];
-        }
-        for (let x = 0; x < width; x++) {
-          horizontal[(y * width + x) * 4 + c] = sum / divisor;
-          const remove = sx(x - radius), add = sx(x + radius + 1);
-          if (remove >= 0 && remove < width) sum -= source[(y * width + remove) * 4 + c];
-          if (add >= 0 && add < width) sum += source[(y * width + add) * 4 + c];
-        }
-      }
-      for (let x = 0; x < width; x++) for (let c = 0; c < 4; c++) {
-        let sum = 0;
-        for (let y = 0; y <= Math.min(radius, height - 1); y++) sum += horizontal[(y * width + x) * 4 + c];
-        for (let y = 0; y < height; y++) {
-          output[(y * width + x) * 4 + c] = Math.max(0, sum / divisor);
-          const remove = y - radius, add = y + radius + 1;
-          if (remove >= 0) sum -= horizontal[(remove * width + x) * 4 + c];
-          if (add < height) sum += horizontal[(add * width + x) * 4 + c];
-        }
-      }
-      source = output;
-    }
-    start = 0;
-    for (const tile of tiles) {
-      const pixels = tile.pixels[frame];
-      for (let y = 0; y < height; y++) for (let x = 0; x < tile.width; x++) {
-        const from = (y * width + sx(start + x)) * 4, to = (y * tile.width + x) * 4, alpha = output[from + 3];
-        for (let c = 0; c < 3; c++) pixels[to + c] = alpha >= 0.5 ? output[from + c] * 255 / alpha : 0;
-        const gx = sx(start + x);
-        const boundary = wrap ? Math.min(y, height - 1 - y) : Math.min(gx, width - 1 - gx, y, height - 1 - y);
-        pixels[to + 3] = alpha * smoothstep(boundary / scale);
-      }
-      start += tile.width - 1;
-    }
-  }
-}
-export function renderWavePair(grid, pair, { scale = Math.max(1, Math.min(4, Math.ceil(2160 / grid.columns))), ramp = DEFAULT_WAVE_RAMP } = {}) {
-  const a = grid.frames[pair.a].values, b = grid.frames[pair.b].values;
-  const valid = a.map((v, i) => Number.isFinite(v) && v >= 0 && Number.isFinite(b[i]) && b[i] >= 0);
-  const wrapLongitude = grid.bounds[2] - grid.bounds[0] >= 359.99;
-  const support = supportMask(valid, grid.columns, grid.rows);
-  const maskedA = a.map((v, i) => valid[i] ? v : NaN), maskedB = b.map((v, i) => valid[i] ? v : NaN);
-  const [west, south, east, north] = grid.bounds;
-  // Keep each texture quad below 180° to avoid image-source date-line ambiguity.
-  const count = Math.max(1, Math.ceil((east - west) / 120));
-  const tiles = Array.from({ length: count }, (_, index) => {
-    const first = Math.round(index * (grid.columns - 1) / count), last = Math.round((index + 1) * (grid.columns - 1) / count);
-    const width = (last - first) * scale + 1, height = (grid.rows - 1) * scale + 1;
-    const pixels = [new Uint8ClampedArray(width * height * 4), new Uint8ClampedArray(width * height * 4)];
-    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      const gx = first + x / scale, gy = y / scale;
-      const va = bilinear(maskedA, grid.columns, grid.rows, gx, gy);
-      if (va === null) continue;
-      const boundary = wrapLongitude ? Math.min(gy, grid.rows - 1 - gy) : Math.min(gx, gy, grid.columns - 1 - gx, grid.rows - 1 - gy);
-      const edge = support(gx, gy) * smoothstep(boundary / 4);
-      if (!edge) continue;
-      const vb = bilinear(maskedB, grid.columns, grid.rows, gx, gy);
-      for (const [frame, value] of [[0, va], [1, vb]]) {
-        const color = waveColor(value, ramp), offset = (y * width + x) * 4;
-        pixels[frame].set([color[0], color[1], color[2], color[3] * edge], offset);
-      }
-    }
-    const w = west + (east - west) * first / (grid.columns - 1), e = west + (east - west) * last / (grid.columns - 1);
-    return { width, height, pixels, coordinates: [[w, north], [e, north], [e, south], [w, south]] };
-  });
-  softenRaster(tiles, scale, wrapLongitude);
-  return tiles;
 }

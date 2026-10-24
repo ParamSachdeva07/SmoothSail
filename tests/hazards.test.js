@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { highSeasFeatures, verifiedAreaNotices, activeAreaNotices } from '../src/globe/hazards.js';
+import { highSeasFeatures, highSeasAtHour, verifiedAreaNotices, activeAreaNotices } from '../src/globe/hazards.js';
 
 const grid = values => ({ columns: 10, rows: 10, bounds: [-20, 20, 20, 50], frames: [{ hour: 0, validAt: '2026-10-24T00:00:00Z', values }] });
 test('high-sea areas use actual thresholds without labels or invented hazards', () => {
@@ -19,6 +19,26 @@ test('high-sea areas use actual thresholds without labels or invented hazards', 
       assert.ok(point[0] >= -20 && point[0] <= 20 && point[1] >= 20 && point[1] <= 50);
     }
   }
+});
+
+test('sea contours move continuously through the interpolated field, with the selected valid time', () => {
+  const data = grid(Array.from({ length: 100 }, (_, i) => i % 10));
+  data.frames.push({ hour: 6, validAt: '2026-10-24T06:00:00Z', values: data.frames[0].values.map(v => v + 2) });
+  const westEdge = hour => Math.min(...highSeasAtHour(data, hour).features.find(f => f.geometry.type === 'Polygon' && f.properties.thresholdM === 4).geometry.coordinates[0].map(p => p[0]));
+  assert.ok(westEdge(0) > westEdge(3) && westEdge(3) > westEdge(6));
+  assert.ok(Math.abs(westEdge(3) - (westEdge(0) + westEdge(6)) / 2) < 1e-8);
+  assert.ok(Math.abs(westEdge(3) - westEdge(3.01)) < 0.02);
+  const middle = highSeasAtHour(data, 3).features[0].properties;
+  assert.equal(middle.validAt, '2026-10-24T03:00:00.000Z');
+  assert.equal(middle.interpolated, true);
+  assert.deepEqual(highSeasAtHour(data, 6), highSeasFeatures(data, 1));
+});
+
+test('contours neither extrapolate forecasts nor interpolate through missing samples', () => {
+  const data = grid(Array(100).fill(null));
+  data.frames.push({ hour: 6, validAt: '2026-10-24T06:00:00Z', values: Array(100).fill(7) });
+  for (const hour of [-1, 0, 3, 5.99, 6.01]) assert.equal(highSeasAtHour(data, hour).features.length, 0);
+  assert.ok(highSeasAtHour(data, 6).features.length > 0);
 });
 
 test('area notices require verification and obey exact validity boundaries', () => {
