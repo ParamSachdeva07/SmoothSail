@@ -23,7 +23,6 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
           <label class="field__label" for="field-departure">${icon('calendar')}<span>Departure · UTC</span></label>
           <input class="field__input" id="field-departure" type="date" value="${shipment.departure}" min="${shipment.departure}">
         </div>
-        <p class="field__note mono-label">Generic container vessel · Fastest, cheapest and lowest CO₂ · Today means depart now</p>
         <p class="form-status mono-label" role="status" aria-live="polite"></p>
         <button class="button button--primary" type="submit" disabled>${icon('search')}<span>Search routes</span></button>
         <button class="button button--quiet" type="button" data-action="retry" hidden>Retry loading ports</button>
@@ -38,7 +37,6 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
   const retry = element.querySelector('[data-action="retry"]');
   const inputs = Object.fromEntries(['origin', 'destination', 'departure'].map((key) => [key, element.querySelector(`#field-${key}`)]));
   let controller = null;
-  let interval = null;
   let active = false;
 
   function showStatus(message, error = false) {
@@ -59,7 +57,6 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
   function cancel() {
     controller?.abort();
     controller = null;
-    clearInterval(interval);
     setBusy(false);
   }
   async function preparePorts() {
@@ -68,7 +65,7 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
     try {
       await loadPorts();
       for (const key of ['origin', 'destination']) inputs[key].value = labelFor(shipment[`${key}Id`]);
-      element.querySelector('.panel-foot').textContent = `${PORTS.length} supported ports · Indicative routing · No freight quote`;
+      element.querySelector('.panel-foot').textContent = '';
       if (active) showStatus('');
       setBusy(false);
     } catch (error) {
@@ -162,16 +159,12 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
     const pending = new AbortController();
     controller = pending;
     setBusy(true);
-    const started = performance.now();
-    const progress = () => showStatus(`Calculating route options · ${Math.floor((performance.now() - started) / 1000)}s elapsed. A cold start can take longer.`);
-    progress();
-    interval = setInterval(progress, 1000);
     try {
       await onSubmit(request, pending.signal);
     } catch (error) {
       if (!pending.signal.aborted) showStatus(error.message, true);
     } finally {
-      if (controller === pending) { controller = null; clearInterval(interval); setBusy(false); }
+      if (controller === pending) { controller = null; setBusy(false); }
     }
   });
   retry.addEventListener('click', preparePorts);

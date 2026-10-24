@@ -13,7 +13,9 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
       <header class="detail__head">
         <div><h1 class="wordmark">SmoothSail</h1><p class="mono-label" data-role="route-name"></p><p class="mono-label map-status" role="status"></p></div>
       </header>
+      <button class="route-summary__show" type="button" data-action="toggle-summary" aria-expanded="false" hidden>Show</button>
       <div class="route-summary" aria-label="Route summary">
+        <button class="route-summary__hide" type="button" data-action="toggle-summary" aria-expanded="true">Hide</button>
         <dl class="route-summary__metrics">
           <div class="metric"><dt class="mono-label">Transit</dt><dd class="metric__value" data-role="duration"></dd></div>
           <div class="metric"><dt class="mono-label">Distance</dt><dd class="metric__value" data-role="distance"></dd></div>
@@ -49,6 +51,13 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
     const action = event.target.closest('button[data-action]')?.dataset.action;
     if (action === 'back') onBack?.();
     if (action === 'play') flat?.togglePlayback();
+    if (action === 'toggle-summary') {
+      const panel = element.querySelector('.route-summary');
+      const show = element.querySelector('.route-summary__show');
+      panel.hidden = !panel.hidden;
+      show.hidden = !panel.hidden;
+      (panel.hidden ? show : element.querySelector('.route-summary__hide')).focus();
+    }
   });
   function render(route) {
     const report = getReport();

@@ -280,7 +280,7 @@ body {
   color: var(--bg);
 }
 
-/* --- Buttons. Square, flat, icon and label side by side. ---------------- */
+/* --- Buttons. Icon and label side by side. ------------------------------ */
 
 .button {
   display: inline-flex;
@@ -311,6 +311,29 @@ body {
   background: transparent;
   color: var(--text);
   border-color: var(--hairline);
+}
+
+/* Affirmative actions match the blue pill controls on the route page. */
+.button--primary {
+  min-width: 98px;
+  height: 36px;
+  padding: 0 16px;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: #123DFF;
+  color: #fff;
+  font: 500 14px / 1 var(--font-ui);
+}
+
+.button--primary:hover {
+  background: #0B32D8;
+  opacity: 1;
+}
+
+.button--primary:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
 }
 
 .panel-foot {
@@ -701,6 +724,39 @@ body {
   cursor: pointer;
 }
 
+.route-summary__show {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--gutter);
+  z-index: 2;
+  min-width: 98px;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #123DFF;
+  color: #fff;
+  font: 500 14px / 1 var(--font-ui);
+  cursor: pointer;
+}
+.route-summary__show[hidden], .route-summary[hidden] { display: none; }
+.route-summary__show:hover { background: #0B32D8; }
+.route-summary__show:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+
+.route-summary__hide {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #111;
+  background: none;
+  color: #111;
+  font: 12px / 1.3 var(--font-ui);
+  cursor: pointer;
+}
+.route-summary__hide:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+
 .route-summary__back:hover,
 .route-summary__preview:hover { background: #0B32D8; }
 .route-summary__back:focus-visible,
@@ -779,11 +835,64 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 .voyage-ship, .voyage-ship * { pointer-events: none; }
 .voyage-ship__heading, .voyage-ship svg { width: 100%; height: 100%; display: block; }
 .voyage-ship__heading { transform-origin: center; will-change: transform; }
-.voyage-ship__hull { fill: var(--text); stroke: var(--accent-primary); stroke-width: 1.6; stroke-linejoin: round; }
+.voyage-ship__hull { fill: var(--vessel); stroke: var(--accent-primary); stroke-width: 1.6; stroke-linejoin: round; }
 .voyage-ship__deck { fill: none; stroke: var(--bg); stroke-width: 1.5; }
 .voyage-ship__wake { fill: none; stroke: var(--accent-primary); stroke-width: 1.2; opacity: 0.25; stroke-linecap: round; }
 .voyage-ship[data-waiting="true"] .voyage-ship__wake { opacity: 0; }
-.detail .dot--vessel { background: var(--text); border: var(--border-width) solid var(--accent-primary); }
+.detail .dot--vessel { background: var(--vessel); border: var(--border-width) solid var(--accent-primary); }
 @media (max-width: 760px) {
   .route-summary__metrics { gap: 8px 12px; }
 }
+
+/* --- Compliance intake modal -------------------------------------------- */
+
+.modal {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: rgba(250, 250, 250, 0.82);
+}
+
+.modal__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 560px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--text);
+  background: var(--bg);
+}
+
+.modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.modal__head .mono-label { margin: 0 0 var(--space-2); color: var(--text); }
+.modal__intro { margin: 0; color: var(--text-secondary); line-height: 1.5; font-size: var(--font-size-13); }
+.field__file { padding: var(--space-2) var(--space-3); height: auto; font-size: var(--font-size-13); }
+.field__textarea { height: auto; padding: var(--space-3); resize: vertical; font-family: var(--font-ui); }
+
+.modal__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border-color);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+}
+
+.modal__check input { width: var(--checkbox-size); height: var(--checkbox-size); accent-color: var(--text); margin: 0; }
+.modal__actions { display: flex; justify-content: flex-end; gap: var(--space-2); }

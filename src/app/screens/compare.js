@@ -21,9 +21,9 @@ export function createCompareScreen({ onBack, onViewRoute, onSelectRoute }) {
         <ul class="tags"><li class="tag tag--neutral">${h(coverageLabel(route))}</li><li class="tag tag--neutral">Compliance not assessed</li></ul>
         <div class="card__summary">${summary.map((line) => `<p>${h(line)}</p>`).join('')}</div>
         <div class="card__actions">
-          <button class="button button--quiet" type="button" data-action="info" disabled title="Route information is coming soon">${icon('info')}<span>Info</span></button>
+          <button class="button button--quiet" type="button" data-action="info">${icon('info')}<span>Info</span></button>
           <button class="button button--quiet" type="button" data-action="view">${icon('ship')}<span>View route</span></button>
-          <button class="button button--primary" type="button" data-action="select">${icon('arrow-right')}<span>Select this route</span></button>
+          <button class="button button--primary" type="button" data-action="select"><span>Select this route</span></button>
         </div>
       </article>`;
   }
@@ -41,13 +41,56 @@ export function createCompareScreen({ onBack, onViewRoute, onSelectRoute }) {
         <p class="sheet__foot mono-label">Whole-vessel planning estimates, not freight quotes · Fuel + vessel time + canal charges · Insurance, port charges and emissions allowances excluded · Shared paths may have different speeds</p>
       </div>`;
   }
+  let pending = null;
+  let lastFocus = null;
+  function openModal(action, id) {
+    pending = { action, id };
+    lastFocus = document.activeElement;
+    element.querySelector('.modal')?.remove();
+    element.insertAdjacentHTML('beforeend', `
+      <div class="modal">
+        <form class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="intake-title" novalidate>
+          <header class="modal__head">
+            <div><p class="mono-label">Compliance details · Optional</p><h2 class="card__name" id="intake-title">Vessel &amp; cargo information</h2></div>
+            <button class="button button--quiet" type="button" data-action="close" aria-label="Close">${icon('minus')}</button>
+          </header>
+          <p class="modal__intro">Share your vessel manifest and IMO number so we can give you more detailed compliance information. Every field is optional.</p>
+          <label class="field"><span class="field__label">Vessel manifest or documents</span>
+            <input class="field__input field__file" type="file" name="manifest" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv" multiple></label>
+          <label class="field"><span class="field__label">IMO number</span>
+            <input class="field__input" type="text" name="imo" inputmode="numeric" autocomplete="off" placeholder="IMO 1234567" maxlength="11"></label>
+          <label class="field"><span class="field__label">Other notes (cargo type, flag state, previous ports)</span>
+            <textarea class="field__input field__textarea" name="notes" rows="3" placeholder="Anything else relevant to compliance"></textarea></label>
+          <label class="modal__check"><input type="checkbox" name="skip"><span>Continue without filling in information</span></label>
+          <footer class="modal__actions">
+            <button class="button button--quiet" type="button" data-action="close">Cancel</button>
+            <button class="button button--primary" type="submit"><span>Submit</span></button>
+          </footer>
+        </form>
+      </div>`);
+    element.querySelector('input[name="manifest"]').focus();
+  }
+  function closeModal() {
+    element.querySelector('.modal')?.remove();
+    pending = null;
+    lastFocus?.focus?.();
+  }
+  element.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const { action, id } = pending ?? {};
+    closeModal();
+    if (action === 'view') onViewRoute?.(id);
+    if (action === 'select') onSelectRoute?.(id);
+  });
+  element.addEventListener('keydown', (event) => { if (event.key === 'Escape' && pending) closeModal(); });
   element.addEventListener('click', (event) => {
+    if (event.target.classList.contains('modal')) return closeModal();
     const button = event.target.closest('button[data-action]');
     if (!button || button.disabled) return;
     const id = button.closest('[data-route]')?.dataset.route;
     if (button.dataset.action === 'back') onBack?.();
-    if (button.dataset.action === 'view') onViewRoute?.(id);
-    if (button.dataset.action === 'select') onSelectRoute?.(id);
+    if (button.dataset.action === 'close') closeModal();
+    if (['info', 'view', 'select'].includes(button.dataset.action)) openModal(button.dataset.action, id);
   });
   return { element, showGlobe: false, enter: render };
 }
