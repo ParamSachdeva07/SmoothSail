@@ -1,0 +1,4 @@
+Land and coastline geometry: Natural Earth 1:10m physical land polygons.
+Source: https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_10m_land.geojson
+Natural Earth data is public domain (public domain dedication / no permission required). This project does not include country boundaries.
+The generated dot GeoJSON files are samples of land polygons from this source.

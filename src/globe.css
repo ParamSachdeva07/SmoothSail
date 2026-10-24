@@ -1,0 +1,20 @@
+/* Keep the renderer on the page background through initialization and resize.
+   (Previously black, which flashed against the off-white screen.) */
+#globe,
+#globe .mapboxgl-canvas-container,
+#globe .mapboxgl-canvas {
+  background: var(--bg, #FAFAFA);
+}
+
+#globe .mapboxgl-canvas {
+  cursor: grab;
+}
+
+#globe .mapboxgl-canvas:active {
+  cursor: grabbing;
+}
+
+#globe .mapboxgl-canvas:focus-visible {
+  outline: 1px solid var(--text, #0A0A0A);
+  outline-offset: -3px;
+}

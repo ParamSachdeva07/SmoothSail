@@ -1,0 +1,814 @@
+/* SmoothSail application shell.
+   Square corners everywhere, 1px hairlines instead of fills or shadows,
+   left-aligned by default, fade-only transitions. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-13);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  overflow: hidden;
+}
+
+/* --- Screens ----------------------------------------------------------- */
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  isolation: isolate;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-speed) var(--transition-easing), visibility 0s linear var(--transition-speed);
+}
+
+.screen[data-active="true"] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--transition-speed) var(--transition-easing), visibility 0s;
+}
+
+/* --- Globe stage ------------------------------------------------------- */
+
+.globe-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+#globe {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+/* Mapbox control chrome is positioned, not hidden — attribution stays
+   reachable (Mapbox + Natural Earth licensing). */
+.mapboxgl-ctrl-attrib {
+  background: transparent !important;
+  font: var(--font-size-11) / 1.2 var(--font-mono);
+  letter-spacing: var(--tracking-caps);
+}
+
+.mapboxgl-ctrl-attrib a {
+  color: var(--text-secondary);
+}
+
+.mapboxgl-ctrl-logo {
+  opacity: 0.45;
+}
+
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-top-left,
+.mapboxgl-ctrl-top-right {
+  display: none !important;
+}
+
+/* --- Type utilities ---------------------------------------------------- */
+
+.wordmark {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-24);
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  color: var(--text);
+}
+
+.mono-label {
+  font: var(--font-size-11) / 1.4 var(--font-mono);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.lede {
+  margin: var(--space-2) 0 0;
+  max-width: 34ch;
+  font-size: var(--font-size-13);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* --- Landing ----------------------------------------------------------- */
+
+.landing__identity {
+  position: absolute;
+  z-index: 2;
+  top: var(--gutter);
+  left: var(--gutter);
+  pointer-events: none;
+}
+
+.landing__rule {
+  width: var(--rule-width);
+  height: var(--border-width);
+  margin: var(--space-3) 0;
+  background: var(--accent-primary);
+}
+
+.landing__footer {
+  position: absolute;
+  z-index: 2;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: var(--gutter);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: 0;
+  pointer-events: none;
+}
+
+.landing__scroll-cue {
+  position: absolute;
+  z-index: 2;
+  left: var(--gutter);
+  bottom: calc(var(--gutter) + 28px);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.landing__scroll-cue::before {
+  content: "";
+  width: var(--border-width);
+  height: var(--scroll-cue-height);
+  background: var(--text);
+}
+
+/* --- Search panel (screen 2) ------------------------------------------- */
+
+.panel-column {
+  position: absolute;
+  top: var(--gutter);
+  bottom: var(--gutter);
+  left: var(--gutter);
+  width: var(--panel-width-search);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  pointer-events: auto;
+}
+
+.panel-head .wordmark {
+  margin-bottom: var(--space-2);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: var(--form-width-max);
+}
+
+.field {
+  position: relative;
+  display: block;
+}
+
+.field__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font: var(--font-size-11) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.field__label .icon {
+  color: var(--text);
+}
+
+.field__input {
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-13);
+  appearance: none;
+}
+
+.field__input::placeholder {
+  color: var(--text-secondary);
+}
+
+.field__input:hover {
+  border-color: var(--text-secondary);
+}
+
+.field__input:focus {
+  outline: none;
+  border-color: var(--text);
+}
+
+.field__note {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Port dropdown — flat list, hairline border, square. */
+.options {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + var(--border-width));
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--bg);
+  border: var(--border-width) solid var(--text);
+  max-height: var(--options-max-height);
+  overflow-y: auto;
+}
+
+.options li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+}
+
+.options li + li {
+  border-top: var(--border-width) solid var(--border-color);
+}
+
+.options li:hover,
+.options li[aria-selected="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.options__code {
+  font: var(--font-size-11) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-caps);
+  color: var(--text-secondary);
+}
+
+.options li:hover .options__code,
+.options li[aria-selected="true"] .options__code {
+  color: var(--bg);
+}
+
+/* --- Buttons. Square, flat, icon and label side by side. ---------------- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--text);
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+  transition: opacity var(--transition-speed) var(--transition-easing);
+}
+
+.button:hover {
+  opacity: 0.78;
+}
+
+.button:focus-visible {
+  outline: var(--border-width) solid var(--accent-primary);
+  outline-offset: var(--focus-offset);
+}
+
+.button--quiet {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--hairline);
+}
+
+.panel-foot {
+  margin: auto 0 0;
+}
+
+/* The globe steps back while the panel is open, but keeps rendering. */
+.app[data-screen="search"] .globe-stage {
+  transform: translateX(16%);
+  transition: transform var(--transition-speed-slow) var(--transition-easing);
+}
+
+.app[data-screen="landing"] .globe-stage {
+  transform: none;
+  transition: transform var(--transition-speed-slow) var(--transition-easing);
+}
+
+.app[data-globe="off"] .globe-stage {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-speed) var(--transition-easing), visibility 0s linear var(--transition-speed);
+}
+
+/* Overlay screens must not steal the globe's drag/zoom gestures. */
+.screen {
+  pointer-events: none;
+}
+
+.screen * {
+  pointer-events: auto;
+}
+
+.landing__identity,
+.landing__footer,
+.landing__scroll-cue,
+.landing__identity *,
+.landing__footer *,
+.landing__scroll-cue * {
+  pointer-events: none;
+}
+
+/* --- Sheet layout (screens 3-5) ---------------------------------------- */
+
+.sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--gutter);
+  overflow-y: auto;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.sheet__head .wordmark {
+  margin-bottom: var(--space-2);
+}
+
+.sheet__context {
+  margin: 0;
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width) solid var(--border-color);
+  color: var(--text);
+}
+
+.sheet__foot {
+  margin: auto 0 0;
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border-color);
+}
+
+/* --- Route cards -------------------------------------------------------- */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: stretch;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  border: var(--border-width) solid var(--border-color);
+  padding: var(--space-5);
+  background: transparent;
+}
+
+.card:hover {
+  border-color: var(--text-secondary);
+}
+
+.card[data-selected="true"] {
+  border-color: var(--accent-primary);
+}
+
+.card__head .mono-label {
+  margin: 0 0 var(--space-2);
+  color: var(--text);
+}
+
+.card__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-24);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-4);
+  margin: 0;
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border-color);
+}
+
+.metric dt {
+  margin-bottom: var(--space-1);
+}
+
+.metric dd {
+  margin: 0;
+}
+
+.metric__value {
+  font-size: var(--font-size-24);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric__value--small {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-size-13);
+  line-height: 1.35;
+}
+
+.metric__note {
+  margin-top: var(--space-1) !important;
+}
+
+/* Status indicator — a small flat square, never a glow. */
+.dot {
+  flex: none;
+  width: var(--swatch-size);
+  height: var(--swatch-size);
+  background: var(--text-secondary);
+}
+
+.dot--positive { background: var(--accent-tertiary); }
+.dot--warning { background: var(--accent-secondary); }
+.dot--accent { background: var(--accent-primary); }
+
+/* --- Tags. Small flat labels only, never paragraphs. -------------------- */
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  padding: var(--tag-padding-block) var(--space-2);
+  border: var(--border-width) solid var(--text);
+  font: var(--font-size-11) / 1.4 var(--font-mono);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.tag--warning { border-color: var(--accent-secondary); }
+.tag--positive { border-color: var(--accent-tertiary); }
+.tag--accent { border-color: var(--accent-primary); }
+.tag--neutral { border-color: var(--hairline); color: var(--text-secondary); }
+
+/* Fixed-height summary: expanding swaps the content in place and scrolls,
+   so cards never grow past one another. */
+.card__summary {
+  height: var(--card-summary-height);
+  overflow-y: auto;
+  font-size: var(--font-size-13);
+  line-height: 1.5;
+}
+
+.card__summary p {
+  margin: 0 0 var(--space-3);
+}
+
+.card__summary p:last-child {
+  margin-bottom: 0;
+}
+
+.card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.card__actions .button {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+
+@media (max-width: 1100px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .card__summary {
+    height: auto;
+  }
+}
+
+/* --- Screen 4: flat dot-matrix map -------------------------------------- */
+
+/* Specificity note: Mapbox's own `.mapboxgl-map { position: relative }` is
+   loaded after this file, so the container needs more than one class here. */
+.screen .flatmap {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  touch-action: none;
+}
+
+/* Wind streamlines sit above the map canvas, below the UI, and never take
+   pointer input — drag and zoom stay with the map. */
+.wind-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.flatmap .mapboxgl-canvas {
+  cursor: grab;
+}
+
+.flatmap .mapboxgl-canvas:active {
+  cursor: grabbing;
+}
+
+/* Mapbox renders empty control containers bottom-right (this style has no
+   attributed sources). They read as stray floating boxes, so they are hidden
+   and the credit is carried as real text in .detail__credit instead. */
+.detail .mapboxgl-ctrl-bottom-right {
+  display: none !important;
+}
+
+/* One column, one gutter, three bands: header, middle row, info strip.
+   Nothing here is absolutely positioned against another element, so the
+   bands cannot overlap at any viewport width. */
+.detail__layout {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--gutter);
+  pointer-events: none;
+}
+
+.detail__layout > * {
+  pointer-events: auto;
+}
+
+/* Matches .sheet__head on the comparison screen. */
+.detail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.detail__head .wordmark {
+  margin-bottom: var(--space-2);
+}
+
+.detail__middle {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  min-height: 0;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.detail__middle > * {
+  pointer-events: auto;
+}
+
+/* Legend: same dt/dd rhythm as the card metrics. */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.legend > div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.legend dt,
+.legend dd {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.dot--vessel { background: var(--vessel); }
+
+.line {
+  display: block;
+  width: var(--legend-line-width);
+  height: var(--border-width);
+  background: var(--text-secondary);
+}
+
+.line--accent { background: var(--accent-primary); }
+
+/* Overlay toggles and zoom, stacked right-aligned in the same column. */
+/* Sized from the container, never from a fixed offset, so the panel cannot
+   be pushed past the gutter at any width. */
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: var(--panel-width-overlays);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border-color);
+  background: var(--bg);
+}
+
+.toggles__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  color: var(--text);
+}
+
+.toggles__note {
+  margin: var(--space-1) 0 0;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+}
+
+/* Square checkbox, hairline, filled with the accent when on. */
+.toggle input {
+  appearance: none;
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  margin: 0;
+  border: var(--border-width) solid var(--text);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+.toggle input:checked {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.zoom {
+  display: flex;
+}
+
+.zoom .button + .button {
+  border-left: 0;
+}
+
+.button--icon {
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  padding: 0;
+  justify-content: center;
+  background: var(--bg);
+}
+
+/* Footer band: one opaque block so neither the figures nor the credit line
+   have to compete with land dots drawn behind them. */
+.detail__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--text);
+  background: var(--bg);
+}
+
+/* Info strip: the card screen's metric treatment, laid out in a row. */
+.infostrip {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.metrics--strip {
+  display: flex;
+  gap: var(--space-7);
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.infostrip__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.detail__credit {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .detail__middle {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+    justify-content: flex-end;
+  }
+
+  .controls {
+    align-self: flex-end;
+  }
+
+  .infostrip {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .metrics--strip {
+    flex-wrap: wrap;
+    gap: var(--space-4) var(--space-5);
+  }
+}
+
+/* --- Status ------------------------------------------------------------ */
+
+.status {
+  position: absolute;
+  z-index: 3;
+  left: var(--gutter);
+  top: 50%;
+  width: min(var(--status-width-max), calc(100vw - (2 * var(--gutter))));
+  transform: translateY(-50%);
+  border-left: var(--border-width) solid var(--accent-secondary);
+  padding-left: var(--space-3);
+  font-size: var(--font-size-13);
+  line-height: 1.5;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.status:empty {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .landing__footer span:last-child {
+    display: none;
+  }
+}

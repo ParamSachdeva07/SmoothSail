@@ -1,0 +1,18 @@
+{
+  "name": "dot-matrix-globe",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "data:generate": "node scripts/generate-dots.mjs",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "mapbox-gl": "^3.17.0"
+  },
+  "devDependencies": {
+    "vite": "^6.4.1"
+  }
+}

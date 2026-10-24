@@ -1,0 +1,114 @@
+/* SmoothSail design tokens — the single source of truth for every design
+   value in the app.
+   Flat, brutalist, square. No shadows, no gradients, no blur, no radii.
+   Every colour below is load-bearing; accents are for small shapes only.
+
+   Naming: --role-purpose, lowercase, kebab-case.
+   Loaded first in src/main.js, ahead of every other stylesheet. */
+
+:root {
+  /* --- Surface + text --------------------------------------------------- */
+  --bg: #FAFAFA;                 /* page background (off-white, never pure white) */
+  --text: #0A0A0A;               /* primary text; also the flat 2D map's land dots */
+  --text-secondary: #9A9A9A;     /* secondary / disabled text */
+  --hairline: #E0E0E0;           /* 1px borders — the only panel treatment */
+
+  /* --- Globe ------------------------------------------------------------ */
+  --globe-sphere: #0800FF;
+  --globe-dots: #0CFD03;         /* land dots, and the wind streamlines */
+
+  /* --- Vessel ----------------------------------------------------------- */
+  --vessel: #FF0F13;
+
+  /* --- Accents. Small shapes, tags, route lines, status indicators only.
+         Never a fill for a panel or any large area. ------------------------ */
+  --accent-primary: #FF00A1;     /* selected state, primary route line, port markers */
+  --accent-secondary: #FFF200;   /* warning, alternate routes */
+  --accent-tertiary: #15FF00;    /* positive / compliant */
+
+  /* --- Type -------------------------------------------------------------
+     Display: wordmark, landing headline, section titles only. 40px+ is this
+     face only. Loaded from Google Fonts in index.html. */
+  --font-display: "Libre Baskerville", Georgia, "Times New Roman", serif;
+
+  /* PROVISIONAL. The UI/body/data typeface has not been chosen yet — this is
+     a deliberate placeholder, not a decision, and is the single line to swap
+     when the face is picked. Explicitly NOT Inter. It is applied consistently
+     across the app (body, inputs, buttons); the only other UI stack in the
+     repo is the unused legacy style.css, which still names Inter. */
+  --font-ui: "Helvetica Neue", Helvetica, system-ui, Arial, sans-serif;
+
+  /* PROVISIONAL, same caveat. Mono carries coordinates, data values, tracked
+     caps labels and the status/footer text. JetBrains Mono is loaded from
+     Google Fonts in index.html; the rest of the stack is the system fallback. */
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --font-size-11: 11px;
+  --font-size-13: 13px;
+  --font-size-16: 16px;
+  --font-size-24: 24px;
+  --font-size-40: 40px;          /* display only */
+  --font-size-56: 56px;          /* display only */
+
+  --tracking-caps: 0.05em;       /* mono labels, uppercase */
+  --tracking-display: -0.01em;   /* wordmark */
+
+  /* --- Space ------------------------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Page gutter. Primary target is 1440px wide. */
+  --gutter: 40px;
+  --gutter-compact: 16px;        /* applied below the 760px breakpoint */
+
+  /* --- Border ------------------------------------------------------------ */
+  --border-width: 1px;
+  --border-color: var(--hairline);
+  --radius: 0;                   /* square corners everywhere, by design */
+
+  /* --- Motion. Fade only, ~250ms. No slide, no parallax. ----------------- */
+  --transition-speed: 250ms;
+  --transition-speed-slow: 600ms;  /* globe stage shift between screens 1 and 2 */
+
+  /* NOTE: this is an ease-out curve, but the custom cubic-bezier actually in
+     use — not the `ease-out` keyword. Kept at its real value so output is
+     unchanged; see the refactor summary. */
+  --transition-easing: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Camera motion, read by JS (see cssDurationMs in src/settings.js). */
+  --camera-ease-duration: 1600ms;  /* flyToRegion, when a port is chosen */
+  --camera-reset-duration: 900ms;  /* returning to the full-globe landing view */
+  --camera-fit-duration: 900ms;    /* fitting the flat map to a route */
+  --camera-zoom-duration: 300ms;   /* the +/- zoom buttons */
+
+  /* --- Component sizing --------------------------------------------------
+     Extracted from app.css; these are component dimensions rather than steps
+     on the spacing scale, so they are named for their role. */
+  --control-height: 40px;            /* text fields and standard buttons */
+  --control-height-sm: 36px;         /* square icon-only buttons */
+  --panel-width-search: 360px;       /* screen 2 left column */
+  --form-width-max: 320px;           /* form inside that column */
+  --panel-width-overlays: 184px;     /* screen 4 overlay toggles */
+  --card-summary-height: 112px;      /* fixed, so cards stay equal height */
+  --options-max-height: 232px;       /* port dropdown before it scrolls */
+  --status-width-max: 420px;
+  --rule-width: 72px;                /* accent rule under the landing wordmark */
+  --scroll-cue-height: 18px;
+  --legend-line-width: 16px;         /* route swatch in the map legend */
+  --swatch-size: 7px;                /* square status indicator */
+  --checkbox-size: 12px;
+  --tag-padding-block: 3px;
+  --focus-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --gutter: var(--gutter-compact);
+  }
+}
