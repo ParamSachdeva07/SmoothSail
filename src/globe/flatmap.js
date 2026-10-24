@@ -5,12 +5,13 @@ import { routeFeature, routeBounds } from './geometry.js';
 import { createWaveOverlay } from './wave-overlay.js';
 import { createVoyagePlayer } from './voyage-player.js';
 import { createHazardOverlay } from './hazard-overlay.js';
+import { createSmoothZoom } from './smooth-zoom.js';
 
 const empty = () => ({ type: 'FeatureCollection', features: [] });
 const collection = (features) => ({ type: 'FeatureCollection', features });
 const point = (coordinates, properties) => ({ type: 'Feature', properties, geometry: { type: 'Point', coordinates } });
 
-export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = () => {}, onPlaybackState = () => {}, onNotices = () => {} }) {
+export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = () => {}, onPlaybackState = () => {}, onNotices = () => {}, onWaveState = () => {} }) {
   const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN?.trim();
   if (!token) { onStatus('Add a Mapbox public token to display the map.'); return null; }
   mapboxgl.accessToken = token;
@@ -28,8 +29,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
   map.touchZoomRotate.disableRotation();
   map.doubleClickZoom.disable();
   map.boxZoom.disable();
-  map.scrollZoom.setWheelZoomRate(SETTINGS.zoomSensitivity / 450);
-  map.scrollZoom.setZoomRate(SETTINGS.zoomSensitivity / 100);
+  const zoom = createSmoothZoom(map, { sensitivity: SETTINGS.zoomSensitivity });
   map.on('error', () => onStatus('Some map data could not load. Check your connection or Mapbox token.'));
   let waves = null, player = null, hazards = null, departure = null;
   let active = true, coastReady = false;
@@ -84,10 +84,10 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
       'fill-color': background, 'fill-opacity': 1
     } }, 'land-structure-polygon');
     hazards = createHazardOverlay(map, { beforeLayer: 'route-layer', onNotices });
-    waves = createWaveOverlay(map, { beforeLayer: 'wave-shore-fade', onError: onStatus, onHazards: data => hazards.setSeas(data) });
+    waves = createWaveOverlay(map, { beforeLayer: 'wave-shore-fade', onError: onStatus, onHazards: data => hazards.setSeas(data), onDisplayState: onWaveState });
     player = createVoyagePlayer(map, {
+      onTime: (hour, immediate) => waves.setHour(hour, immediate),
       onTick: (state) => {
-        waves.setHour(state.hour);
         if (departure) hazards.setTime(new Date(Date.parse(departure) + state.hour * 3_600_000).toISOString());
         onVoyageTick(state);
       },
@@ -101,6 +101,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
   const markers = [];
   function fit() {
     if (!latestRoute || !container.clientWidth || !container.clientHeight) return;
+    zoom.reset();
     const mobile = container.clientWidth < 900;
     map.fitBounds(routeBounds(latestRoute.geometry), {
       padding: { top: 150, right: mobile ? 30 : 240, bottom: Math.max(mobile ? 270 : 230, (container.parentElement.querySelector('.detail__footer')?.offsetHeight ?? 180) + 65), left: mobile ? 30 : 65 },
@@ -123,7 +124,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
 
   return {
     resize,
-    destroy: () => { player?.destroy(); waves?.destroy(); hazards?.destroy(); observer.disconnect(); markers.forEach((marker) => marker.remove()); map.remove(); },
+    destroy: () => { player?.destroy(); waves?.destroy(); hazards?.destroy(); zoom.destroy(); observer.disconnect(); markers.forEach((marker) => marker.remove()); map.remove(); },
     showRoute(route, { origin, destination, departureTime, waveGrid, overlays }) {
       latestRoute = route;
       const current = ++revision;
@@ -144,6 +145,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
         hazards.setVisible('hazards', true);
         hazards.setVisible('restrictions', true);
         waves.setGrid(waveGrid);
+        waves.setHazardsVisible(true);
         waves.setActive(active && coastReady);
         waves.setVisible(true);
         player.setActive(active);
@@ -155,13 +157,16 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     setOverlay(id, visible) {
       if (id === 'waves') ready.then(() => waves.setVisible(visible));
       if (id === 'alternates') ready.then(() => map.setLayoutProperty('alt-routes-layer', 'visibility', visible ? 'visible' : 'none'));
-      if (id === 'hazards' || id === 'restrictions') ready.then(() => hazards.setVisible(id, visible));
+      if (id === 'hazards' || id === 'restrictions') ready.then(() => {
+        hazards.setVisible(id, visible);
+        if (id === 'hazards') waves.setHazardsVisible(visible);
+      });
     },
     setActive(next) { active = next; player?.setActive(next); waves?.setActive(next && coastReady); },
     togglePlayback() { player?.toggle(); },
     restartPlayback() { player?.restart(); },
     seekVoyage(fraction) { player?.seek(fraction); },
     fitRoute: fit,
-    zoomBy(delta) { map.easeTo({ zoom: Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), map.getZoom() + delta)), duration: cssDurationMs('--camera-zoom-duration', 300) }); }
+    zoomBy: zoom.zoomBy
   };
 }
