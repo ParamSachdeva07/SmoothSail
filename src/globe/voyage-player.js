@@ -6,14 +6,10 @@ export function createVoyagePlayer(map, { onTick = () => {}, onState = () => {} 
   const element = document.createElement('div');
   element.className = 'voyage-ship';
   element.setAttribute('aria-label', 'Simulated vessel position');
-  element.innerHTML = `<div class="voyage-ship__heading"><svg viewBox="-22 -32 44 64" aria-hidden="true">
-    <path class="voyage-ship__wake" d="M-4 15 -9 29 M4 15 9 29 M0 18 0 31"/>
-    <path class="voyage-ship__hull" d="M0-15 C3-12 7-5 7 2 L6 13 -6 13 -7 2 C-7-5-3-12 0-15Z"/>
-    <path class="voyage-ship__deck" d="M-3-3 3-3 3 7 -3 7Z M-3 9 3 9"/>
-  </svg></div>`;
+  element.innerHTML = '<div class="voyage-ship__heading" aria-hidden="true"><span class="voyage-ship__body"></span></div>';
   const marker = new mapboxgl.Marker({ element, anchor: 'center' });
   const headingElement = element.firstElementChild;
-  let track = null, hour = 0, playing = false, active = true, raf = null, previous = 0, heading = null;
+  let track = null, hour = 0, playing = false, active = true, raf = null, previous = 0, heading = null, speed = 1;
   let lastTick = 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const durationMs = cssDurationMs('--voyage-preview-duration', 90_000);
@@ -47,13 +43,13 @@ export function createVoyagePlayer(map, { onTick = () => {}, onState = () => {} 
       raf = requestAnimationFrame(frame);
     }
     if (!playing) render(0, true);
-    onState({ playing, hour });
+    onState({ playing, hour, duration: track?.duration ?? 0, speed });
   }
   function frame(now) {
     if (!playing || !active || !track) return;
     const elapsed = previous ? now - previous : 0;
     previous = now;
-    hour = Math.min(track.duration, hour + elapsed / durationMs * track.duration);
+    hour = Math.min(track.duration, hour + elapsed * speed / durationMs * track.duration);
     render(elapsed);
     if (hour >= track.duration) { render(0, true); setPlaying(false); }
     else raf = requestAnimationFrame(frame);
@@ -69,7 +65,7 @@ export function createVoyagePlayer(map, { onTick = () => {}, onState = () => {} 
       hour = 0; heading = null;
       marker.setLngLat(track.at(0).coordinates).addTo(map);
       render(0, true);
-      if (!reducedMotion.matches) setPlaying(true);
+      onState({ playing: false, hour, duration: track.duration, speed });
     },
     seek(fraction) {
       if (!track) return;
@@ -79,6 +75,11 @@ export function createVoyagePlayer(map, { onTick = () => {}, onState = () => {} 
     },
     toggle() { setPlaying(!playing); },
     restart() { hour = 0; render(0, true); setPlaying(true); },
+    setSpeed(next) {
+      if (![1, 1.5, 2, 4].includes(next)) return;
+      speed = next;
+      onState({ playing, hour, duration: track?.duration ?? 0, speed });
+    },
     setActive(next) { active = next; if (!next) setPlaying(false); },
     destroy() { setPlaying(false); marker.remove(); document.removeEventListener('visibilitychange', visibility); reducedMotion.removeEventListener('change', motionPreference); }
   };

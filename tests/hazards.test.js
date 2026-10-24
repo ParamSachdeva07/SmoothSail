@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { highSeasFeatures, verifiedAreaNotices, activeAreaNotices } from '../src/globe/hazards.js';
 
 const grid = values => ({ columns: 10, rows: 10, bounds: [-20, 20, 20, 50], frames: [{ hour: 0, validAt: '2026-10-24T00:00:00Z', values }] });
-test('high-sea outlines use actual thresholds and never invent hazards in empty or calm grids', () => {
+test('high-sea areas use actual thresholds without labels or invented hazards', () => {
   assert.equal(highSeasFeatures(grid(Array(100).fill(null)), 0).features.length, 0);
   assert.equal(highSeasFeatures(grid(Array(100).fill(2)), 0).features.length, 0);
   const values = Array.from({ length: 100 }, (_, i) => {
@@ -12,6 +12,7 @@ test('high-sea outlines use actual thresholds and never invent hazards in empty 
   const features = highSeasFeatures(grid(values), 0).features;
   assert.deepEqual([...new Set(features.map(f => f.properties.thresholdM))].sort(), [4, 6]);
   for (const f of features) {
+    assert.equal(f.geometry.type, 'Polygon');
     assert.equal(f.properties.validAt, '2026-10-24T00:00:00Z');
     assert.match(f.properties.basis, /not a confirmed storm/);
     for (const point of f.geometry.type === 'Point' ? [f.geometry.coordinates] : f.geometry.coordinates.flat()) {

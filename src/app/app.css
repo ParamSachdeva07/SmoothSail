@@ -601,6 +601,7 @@ body {
 
 .detail__head .wordmark {
   margin-bottom: var(--space-2);
+  color: #0033FF;
 }
 
 .detail__middle {
@@ -619,38 +620,7 @@ body {
   pointer-events: auto;
 }
 
-/* Legend: same dt/dd rhythm as the card metrics. */
-.legend {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.legend > div {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.legend dt,
-.legend dd {
-  display: flex;
-  align-items: center;
-  margin: 0;
-}
-
 .dot--vessel { background: var(--vessel); }
-
-.line {
-  display: block;
-  width: var(--legend-line-width);
-  height: var(--border-width);
-  background: var(--text-secondary);
-}
-
-.line--accent { background: var(--accent-primary); }
-.line--hazard { background: transparent; border-top: 1px dashed var(--hazard-high); }
 
 .hazard-popup .mapboxgl-popup-content { border-radius: 0; box-shadow: none; border: 1px solid var(--hairline); padding: 18px; background: var(--bg); }
 .hazard-card { font: 11px / 1.6 var(--font-mono); color: var(--text); }
@@ -658,17 +628,35 @@ body {
 .hazard-card p { margin: 8px 0 0; }
 .hazard-card a { display: inline-block; margin-top: 8px; color: var(--hazard-restricted); }
 
-/* Overlay toggles and zoom, stacked right-aligned in the same column. */
-/* Sized from the container, never from a fixed offset, so the panel cannot
-   be pushed past the gutter at any width. */
+/* Overlay control is a left-side blue pill that expands into its settings. */
 .controls {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--space-3);
   min-width: 0;
   max-width: 100%;
-  margin-left: auto;
+  margin: 0;
+}
+
+.overlay-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #123DFF;
+  color: #fff;
+  font: 500 var(--font-size-13) / 1 var(--font-ui);
+  cursor: pointer;
+}
+
+.overlay-trigger:hover { background: #0B32D8; }
+.overlay-trigger:focus-visible {
+  outline: var(--border-width) solid var(--text);
+  outline-offset: var(--focus-offset);
 }
 
 .toggles {
@@ -678,9 +666,10 @@ body {
   width: var(--panel-width-overlays);
   min-width: 0;
   max-width: 100%;
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--border-color);
-  background: var(--bg);
+  padding: 18px;
+  border: 0;
+  border-radius: 20px;
+  background: #D9D9D9;
 }
 
 .toggles__title {
@@ -720,55 +709,102 @@ body {
   border-color: var(--accent-primary);
 }
 
-.zoom {
-  display: flex;
+/* Compact route summary replaces the full-width voyage footer. */
+.route-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+  width: min(440px, calc(100vw - 2 * var(--gutter)));
+  padding: 22px;
+  border: 0;
+  border-radius: 28px;
+  background: #D9D9D9;
+  align-self: flex-start;
 }
 
-.zoom .button + .button {
-  border-left: 0;
+.route-summary__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
 }
 
-.button--icon {
-  width: var(--control-height-sm);
-  height: var(--control-height-sm);
-  padding: 0;
-  justify-content: center;
-  background: var(--bg);
+.route-summary .metric__value {
+  font-size: 20px;
+  line-height: 1.25;
 }
 
-/* Footer band: one opaque block so figures remain readable over the map. */
-.detail__footer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: var(--border-width) solid var(--text);
-  background: var(--bg);
+.route-summary .metric dt {
+  color: #555;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
-/* Info strip: the card screen's metric treatment, laid out in a row. */
-.infostrip {
+.route-summary__footer {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--space-5);
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 48px;
+  gap: 12px;
 }
 
-.metrics--strip {
+.route-summary__eta .metric__value {
+  font-size: var(--font-size-16);
+  line-height: 1.2;
+}
+
+.route-summary__playback {
   display: flex;
-  gap: var(--space-7);
-  margin: 0;
-  padding-top: 0;
-  border-top: 0;
+  align-items: flex-end;
+  flex: 0 0 auto;
+  gap: 10px;
+  height: 48px;
 }
 
-.infostrip__actions {
+.playback-speed {
   display: flex;
-  gap: var(--space-2);
+  align-items: flex-end;
+  flex: 0 0 56px;
 }
 
-.detail__credit {
-  margin: 0;
+.playback-speed select {
+  width: 56px;
+  height: 42px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: 20px / 1 var(--font-ui);
+}
+
+.playback-speed select:focus-visible {
+  outline: var(--border-width) solid var(--accent-primary);
+  outline-offset: var(--focus-offset);
+}
+
+.route-summary__preview {
+  min-width: 112px;
+  height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #123DFF;
+  color: #fff;
+  font: 500 16px / 1 var(--font-ui);
+  cursor: pointer;
+}
+
+.route-summary__preview:hover { background: #0B32D8; }
+.route-summary__preview:focus-visible {
+  outline: var(--border-width) solid var(--text);
+  outline-offset: var(--focus-offset);
 }
 
 @media (max-width: 900px) {
@@ -779,18 +815,9 @@ body {
   }
 
   .controls {
-    align-self: flex-end;
+    align-self: flex-start;
   }
 
-  .infostrip {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .metrics--strip {
-    flex-wrap: wrap;
-    gap: var(--space-4) var(--space-5);
-  }
 }
 
 /* --- Status ------------------------------------------------------------ */
@@ -835,22 +862,22 @@ button.landing__scroll-cue {
   cursor: pointer; pointer-events: auto;
 }
 button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid var(--accent-primary); outline-offset: var(--focus-offset); }
-.map-port-label { font: var(--font-size-11) / 1.4 var(--font-mono); background: var(--bg); color: var(--text); padding: var(--space-1); pointer-events: none; }
+.map-port-label { font: var(--font-size-11) / 1.4 var(--font-mono); background: transparent; color: var(--text); padding: 0; pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px var(--bg), 0 -1px 3px var(--bg), 1px 0 3px var(--bg), -1px 0 3px var(--bg); }
 .line--alternate { background: var(--accent-secondary); }
 .map-status { color: var(--text); max-width: var(--status-width-max); }
 .map-status:empty { display: none; }
-.metric__value--eta { font-size: var(--font-size-16); max-width: var(--panel-width-overlays); }
-.detail__head > div { background: var(--bg); }
 .panel-column { max-width: calc(100vw - 2 * var(--gutter)); overflow-y: auto; padding-bottom: var(--space-2); }
 @media (max-width: 760px) {
   .search .panel-column { background: var(--bg); padding-right: var(--space-3); }
-  .legend { display: none; }
   .detail__layout { gap: var(--space-3); }
-  .detail__footer { gap: var(--space-2); }
+  .route-summary { width: min(440px, calc(100vw - 2 * var(--gutter))); padding: 18px; }
 }
 
-.detail__head > .button, .legend { background: var(--bg); }
-.legend { padding: var(--space-2); }
+.detail__head > .button {
+  border-color: transparent;
+  background: transparent;
+  color: #0033FF;
+}
 
 /* Forecast colour stays quiet; the route and ship stay in the foreground. */
 .wave-scale { display: flex; flex-direction: column; gap: var(--space-1); margin: var(--space-1) 0 var(--space-2); }
@@ -861,29 +888,22 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 }
 .wave-scale__labels { display: flex; justify-content: space-between; color: var(--text); }
 .wave-scale[data-available="false"] .wave-scale__ramp { opacity: 0.15; }
-.voyage-timeline { display: flex; flex-direction: column; gap: var(--space-2); }
-.voyage-timeline__head, .voyage-timeline__track { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.voyage-timeline__head { flex-wrap: wrap; gap: var(--space-1); }
-.voyage-timeline__head .mono-label { color: var(--text); }
-.voyage-timeline__track .button { height: var(--control-height-sm); flex-shrink: 0; }
-.voyage-timeline__position { margin: 0; }
-.voyage-timeline input[type="range"] {
-  appearance: none; flex: 1; min-width: 0; height: var(--voyage-progress-height);
-  background: var(--hairline); cursor: pointer; accent-color: var(--accent-primary);
-}
-.voyage-timeline input[type="range"]::-webkit-slider-thumb { appearance: none; width: var(--voyage-progress-thumb); height: var(--voyage-progress-thumb); border: 0; background: var(--accent-primary); }
-.voyage-timeline input[type="range"]::-moz-range-thumb { width: var(--voyage-progress-thumb); height: var(--voyage-progress-thumb); border: 0; border-radius: 0; background: var(--accent-primary); }
-.voyage-timeline input[type="range"]:focus-visible { outline: var(--border-width) solid var(--accent-primary); outline-offset: var(--focus-offset); }
 .voyage-ship { width: var(--voyage-ship-width); height: var(--voyage-ship-height); z-index: 1; }
 .voyage-ship, .voyage-ship * { pointer-events: none; }
-.voyage-ship__heading, .voyage-ship svg { width: 100%; height: 100%; display: block; }
-.voyage-ship__heading { transform-origin: center; will-change: transform; }
-.voyage-ship__hull { fill: var(--text); stroke: var(--accent-primary); stroke-width: 1.6; stroke-linejoin: round; }
-.voyage-ship__deck { fill: none; stroke: var(--bg); stroke-width: 1.5; }
-.voyage-ship__wake { fill: none; stroke: var(--accent-primary); stroke-width: 1.2; opacity: 0.25; stroke-linecap: round; }
-.voyage-ship[data-waiting="true"] .voyage-ship__wake { opacity: 0; }
-.detail .dot--vessel { background: var(--text); border: var(--border-width) solid var(--accent-primary); }
+.voyage-ship__heading {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  transform-origin: center;
+  will-change: transform;
+}
+.voyage-ship__body {
+  display: block;
+  width: var(--voyage-vessel-width);
+  height: var(--voyage-vessel-height);
+  background: var(--vessel);
+}
 @media (max-width: 760px) {
-  .voyage-timeline__track { gap: var(--space-2); }
   .wave-scale__labels { font-size: var(--font-size-11); }
 }

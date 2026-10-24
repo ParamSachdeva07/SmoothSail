@@ -15,15 +15,7 @@ export function createHazardOverlay(map, { beforeLayer, onNotices = () => {} }) 
   map.addSource('sea-hazards', { type: 'geojson', data: empty(), tolerance: 0.1 });
   map.addSource('area-notices', { type: 'geojson', data: empty() });
   add('hazards', { id: 'sea-hazard-fill', type: 'fill', source: 'sea-hazards', filter: polygon,
-    paint: { 'fill-color': seaColor, 'fill-opacity': 0.035 } });
-  add('hazards', { id: 'sea-hazard-glow', type: 'line', source: 'sea-hazards', filter: polygon,
-    paint: { 'line-color': seaColor, 'line-width': 5, 'line-blur': 3, 'line-opacity': 0.16 } });
-  add('hazards', { id: 'sea-hazard-line', type: 'line', source: 'sea-hazards', filter: polygon,
-    layout: { 'line-join': 'round' }, paint: { 'line-color': seaColor, 'line-width': 1.1, 'line-opacity': 0.8, 'line-dasharray': [4, 3] } });
-  const labelLayout = { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-    'text-size': 10, 'text-letter-spacing': 0.1, 'text-transform': 'uppercase', 'text-padding': 18 };
-  add('hazards', { id: 'sea-hazard-label', type: 'symbol', source: 'sea-hazards', filter: ['==', ['geometry-type'], 'Point'],
-    layout: labelLayout, paint: { 'text-color': seaColor, 'text-halo-color': paper, 'text-halo-width': 2.5 } });
+    paint: { 'fill-color': seaColor, 'fill-opacity': 0.12 } });
 
   const hatch = document.createElement('canvas'); hatch.width = hatch.height = 12;
   const ctx = hatch.getContext('2d'); ctx.strokeStyle = restricted; ctx.lineWidth = 1;
@@ -32,6 +24,8 @@ export function createHazardOverlay(map, { beforeLayer, onNotices = () => {} }) 
   add('restrictions', { id: 'area-notice-fill', type: 'fill', source: 'area-notices', paint: { 'fill-color': restricted, 'fill-opacity': 0.055 } });
   add('restrictions', { id: 'area-notice-hatch', type: 'fill', source: 'area-notices', paint: { 'fill-pattern': 'notice-hatch', 'fill-opacity': 0.3 } });
   add('restrictions', { id: 'area-notice-line', type: 'line', source: 'area-notices', paint: { 'line-color': restricted, 'line-width': 1.3, 'line-dasharray': [2, 2] } });
+  const labelLayout = { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+    'text-size': 10, 'text-letter-spacing': 0.1, 'text-transform': 'uppercase', 'text-padding': 18 };
   add('restrictions', { id: 'area-notice-label', type: 'symbol', source: 'area-notices', layout: labelLayout,
     paint: { 'text-color': restricted, 'text-halo-color': paper, 'text-halo-width': 2 } });
 
@@ -39,17 +33,16 @@ export function createHazardOverlay(map, { beforeLayer, onNotices = () => {} }) 
     const p = event.features?.[0]?.properties;
     if (!p) return;
     const content = document.createElement('div'); content.className = 'hazard-card';
-    const title = document.createElement('strong'); title.textContent = p.kind === 'high_seas' ? `${p.thresholdM}+ m significant waves` : p.name || 'Verified area notice';
+    const title = document.createElement('strong'); title.textContent = p.name || 'Verified area notice';
     const detail = document.createElement('p');
-    detail.textContent = p.kind === 'high_seas' ? `Forecast valid ${p.validAt}. ${p.basis}` :
-      `${p.action === 'exclude' ? 'Exclusion' : 'Review notice'} · ${p.validFrom || 'No start specified'} → ${p.validTo || 'No end specified'}. Applies to this supplied notice only.`;
+    detail.textContent = `${p.action === 'exclude' ? 'Exclusion' : 'Review notice'} · ${p.validFrom || 'No start specified'} → ${p.validTo || 'No end specified'}. Applies to this supplied notice only.`;
     content.append(title, detail);
     if (p.sourceUrl && /^https?:\/\//i.test(p.sourceUrl)) {
       const link = document.createElement('a'); link.href = p.sourceUrl; link.textContent = 'Source notice'; link.target = '_blank'; link.rel = 'noopener noreferrer'; content.append(link);
     }
     popup?.remove(); popup = new mapboxgl.Popup({ closeButton: true, maxWidth: '290px', className: 'hazard-popup' }).setLngLat(event.lngLat).setDOMContent(content).addTo(map);
   }
-  for (const id of ['sea-hazard-fill', 'area-notice-fill']) {
+  for (const id of ['area-notice-fill']) {
     map.on('click', id, showDetails);
     map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });

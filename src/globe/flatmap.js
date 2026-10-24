@@ -9,6 +9,11 @@ import { createHazardOverlay } from './hazard-overlay.js';
 const empty = () => ({ type: 'FeatureCollection', features: [] });
 const collection = (features) => ({ type: 'FeatureCollection', features });
 const point = (coordinates, properties) => ({ type: 'Feature', properties, geometry: { type: 'Point', coordinates } });
+function portLabel(port) {
+  const code = String(port.code ?? '').trim().toUpperCase();
+  const shortCode = /^([A-Z]{2})([A-Z0-9]{3})$/.exec(code);
+  return `${port.name}${code ? ` (${shortCode ? `${shortCode[1]} ${shortCode[2]}` : code})` : ''}`;
+}
 
 export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = () => {}, onPlaybackState = () => {}, onNotices = () => {} }) {
   const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN?.trim();
@@ -98,16 +103,25 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
   }));
   let latestRoute = null;
   let revision = 0;
+  let refitAtMinimum = false;
   const markers = [];
   function fit() {
     if (!latestRoute || !container.clientWidth || !container.clientHeight) return;
     const mobile = container.clientWidth < 900;
     map.fitBounds(routeBounds(latestRoute.geometry), {
-      padding: { top: 150, right: mobile ? 30 : 240, bottom: Math.max(mobile ? 270 : 230, (container.parentElement.querySelector('.detail__footer')?.offsetHeight ?? 180) + 65), left: mobile ? 30 : 65 },
+      padding: { top: 150, right: mobile ? 30 : 240, bottom: Math.max(mobile ? 230 : 190, (container.parentElement.querySelector('.route-summary')?.offsetHeight ?? 130) + 45), left: mobile ? 30 : 65 },
       retainPadding: false,
       maxZoom: 6, duration: cssDurationMs('--camera-fit-duration', 900)
     });
   }
+  map.on('zoomend', () => {
+    if (map.getZoom() > map.getMinZoom() + 0.05) {
+      refitAtMinimum = false;
+    } else if (latestRoute && !refitAtMinimum) {
+      refitAtMinimum = true;
+      fit();
+    }
+  });
   function resize() {
     const { clientWidth: width, clientHeight: height } = container;
     if (!width || !height) return;
@@ -136,7 +150,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
         ports.forEach((port, i) => {
           const label = document.createElement('span');
           label.className = 'map-port-label';
-          label.textContent = `${i ? 'B' : 'A'} · ${port.name}`;
+          label.textContent = portLabel(port);
           markers.push(new mapboxgl.Marker({ element: label, anchor: 'bottom', offset: [0, -10] }).setLngLat(port.coordinates).addTo(map));
         });
         departure = departureTime;
@@ -159,9 +173,6 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     },
     setActive(next) { active = next; player?.setActive(next); waves?.setActive(next && coastReady); },
     togglePlayback() { player?.toggle(); },
-    restartPlayback() { player?.restart(); },
-    seekVoyage(fraction) { player?.seek(fraction); },
-    fitRoute: fit,
-    zoomBy(delta) { map.easeTo({ zoom: Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), map.getZoom() + delta)), duration: cssDurationMs('--camera-zoom-duration', 300) }); }
+    setPlaybackSpeed(speed) { player?.setSpeed(speed); }
   };
 }

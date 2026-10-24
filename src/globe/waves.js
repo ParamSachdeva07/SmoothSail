@@ -2,8 +2,8 @@
 const smoothstep = (x) => { const t = Math.max(0, Math.min(1, x)); return t * t * (3 - 2 * t); };
 const mercator = (lat) => Math.asinh(Math.tan(lat * Math.PI / 180));
 export const DEFAULT_WAVE_RAMP = [
-  [0, 126, 176, 191, 40], [1, 105, 170, 180, 65], [2, 151, 186, 168, 85],
-  [3, 210, 187, 134, 105], [4, 214, 150, 123, 120], [6, 183, 112, 126, 135]
+  [0, 126, 176, 191, 70], [1, 105, 170, 180, 95], [2, 151, 186, 168, 120],
+  [3, 210, 187, 134, 145], [4, 214, 150, 123, 165], [6, 183, 112, 126, 180]
 ];
 export function validWaveGrid(grid) {
   return grid?.projection === 'mercator' && grid.rowOrder === 'north_to_south' && grid.units === 'm' &&

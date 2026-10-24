@@ -26,7 +26,7 @@
   --hazard-restricted: #8C6477;
 
   /* --- Vessel ----------------------------------------------------------- */
-  --vessel: #FF0F13;
+  --vessel: #FF0004;
 
   /* --- Accents. Small shapes, tags, route lines, status indicators only.
          Never a fill for a panel or any large area. ------------------------ */
@@ -131,8 +131,10 @@
   --wave-5: #b7707e;
   --wave-scale-height: 7px;
   --voyage-preview-duration: 90000ms;
-  --voyage-ship-width: 36px;
+  --voyage-ship-width: 25px;
   --voyage-ship-height: 52px;
+  --voyage-vessel-width: 10px;
+  --voyage-vessel-height: 20px;
   --voyage-progress-height: 3px;
   --voyage-progress-thumb: 11px;
 }
