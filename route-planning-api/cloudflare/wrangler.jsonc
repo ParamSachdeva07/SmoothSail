@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tideline-api",
+  "account_id": "78eebbca0acd8b98fa162545a97f6103",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "ALLOWED_ORIGINS": "*",
+    "MONGODB_DB": "tideline"
+  },
+  "containers": [{
+    "class_name": "TidelineContainer",
+    "image": "../Dockerfile",
+    "image_build_context": "..",
+    "instance_type": "standard-1",
+    "max_instances": 1
+  }],
+  "durable_objects": {
+    "bindings": [{ "name": "ROUTER", "class_name": "TidelineContainer" }]
+  },
+  "exports": {
+    "TidelineContainer": { "type": "durable-object", "storage": "sqlite" }
+  },
+  "triggers": { "crons": ["17 */6 * * *"] }
+}

@@ -1,0 +1,95 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { handleRequest } from '../src/gateway.js';
+
+const env = { ALLOWED_ORIGINS: '*' };
+const request = (path, init = {}) => new Request(`https://tideline.example${path}`, init);
+const unavailable = () => { throw new Error('should not reach the container'); };
+
+test('JSON preflights work from unrelated origins without starting a container', async () => {
+  for (const origin of ['http://localhost:3000', 'https://frontend.example', 'https://preview.example']) {
+    const r = await handleRequest(request('/api/routes', { method: 'OPTIONS', headers: {
+      Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type',
+    } }), env, unavailable);
+    assert.equal(r.status, 204);
+    assert.equal(r.headers.get('Access-Control-Allow-Origin'), '*');
+    assert.equal(r.headers.get('Access-Control-Allow-Credentials'), null);
+  }
+});
+
+test('POST forwards JSON unchanged and strips private/browser headers', async () => {
+  const body = JSON.stringify({ origin: 'NLRTM', destination: 'SGSIN' });
+  const r = await handleRequest(request('/api/routes', { method: 'POST', body, headers: {
+    'Content-Type': 'application/json', Cookie: 'private=value', Authorization: 'Bearer private',
+    'X-Tideline-Internal-Token': 'private',
+  } }), env, async forwarded => {
+    assert.equal(new URL(forwarded.url).pathname, '/routes');
+    assert.equal(await forwarded.text(), body);
+    for (const h of ['cookie', 'authorization', 'x-tideline-internal-token']) assert.equal(forwarded.headers.get(h), null);
+    return Response.json({ routes: [] }, { headers: { 'Server-Timing': 'calculation;dur=120' } });
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('Server-Timing'), 'calculation;dur=120');
+  assert.match(r.headers.get('Access-Control-Expose-Headers'), /Server-Timing/);
+  assert.equal(r.headers.get('Cache-Control'), 'no-store');
+});
+
+test('query parameters and backend validation statuses are retained', async () => {
+  const r = await handleRequest(request('/ports/nearby?longitude=invalid'), env, async forwarded => {
+    assert.equal(new URL(forwarded.url).search, '?longitude=invalid');
+    return Response.json({ detail: 'invalid longitude' }, { status: 422 });
+  });
+  assert.equal(r.status, 422);
+  assert.equal(r.headers.get('Access-Control-Allow-Origin'), '*');
+});
+
+test('private and unknown paths stay inaccessible, including API aliases', async () => {
+  for (const path of ['/internal/refresh', '/api/internal/refresh', '/admin', '/api/api/internal/refresh']) {
+    const r = await handleRequest(request(path, { method: 'POST' }), env, unavailable);
+    assert.equal(r.status, 404);
+    assert.equal(r.headers.get('Access-Control-Allow-Origin'), '*');
+  }
+});
+
+test('CORS also wraps method errors and container failures', async () => {
+  const method = await handleRequest(request('/routes'), env, unavailable);
+  assert.equal(method.status, 405);
+  const failure = await handleRequest(request('/health'), env, unavailable);
+  assert.equal(failure.status, 503);
+  assert.equal(failure.headers.get('Access-Control-Allow-Origin'), '*');
+  assert.equal((await failure.text()).includes('should not reach'), false);
+});
+
+test('provisioning responses remain JSON with retry guidance and CORS', async () => {
+  const failure = await handleRequest(request('/health'), env,
+    async () => new Response('There is no Container instance available at this time.', { status: 503 }));
+  assert.equal(failure.status, 503);
+  assert.equal(failure.headers.get('Retry-After'), '5');
+  assert.equal(failure.headers.get('Access-Control-Allow-Origin'), '*');
+  assert.equal((await failure.json()).error.code, 'service_unavailable');
+});
+
+test('optional exact origin allowlist rejects other origins and varies cache keys', async () => {
+  const settings = { ALLOWED_ORIGINS: 'https://one.example, https://two.example' };
+  const denied = await handleRequest(request('/health', { headers: { Origin: 'https://one.example.evil.example' } }), settings, unavailable);
+  assert.equal(denied.status, 403);
+  assert.equal(denied.headers.get('Access-Control-Allow-Origin'), null);
+  const allowed = await handleRequest(request('/health', { headers: { Origin: 'https://two.example' } }), settings, async () => Response.json({ ok: true }));
+  assert.equal(allowed.headers.get('Access-Control-Allow-Origin'), 'https://two.example');
+  assert.match(allowed.headers.get('Vary'), /Origin/);
+});
+
+test('body limit counts UTF-8 bytes even without Content-Length', async () => {
+  const r = await handleRequest(request('/routes', { method: 'POST', body: 'é'.repeat(5000), headers: { 'Content-Type': 'application/json' } }), env, unavailable);
+  assert.equal(r.status, 413);
+  assert.equal(r.headers.get('Access-Control-Allow-Origin'), '*');
+});
+
+test('unsupported preflight headers and non-JSON inputs are rejected', async () => {
+  const preflight = await handleRequest(request('/routes', { method: 'OPTIONS', headers: {
+    'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'X-Tideline-Internal-Token',
+  } }), env, unavailable);
+  assert.equal(preflight.status, 400);
+  const post = await handleRequest(request('/routes', { method: 'POST', body: '{}' }), env, unavailable);
+  assert.equal(post.status, 415);
+});

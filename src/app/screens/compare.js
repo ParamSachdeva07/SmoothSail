@@ -1,14 +1,6 @@
-// Screen 3 — Route comparison.
-// Three cards, side by side, equal height, identical anatomy. Content that
-// would make one card taller is truncated behind a flat "Info" affordance that
-// swaps the text inside the fixed summary block rather than growing the card.
-
 import { icon } from '../icons.js';
-import { ROUTES, formatDuration, formatNm, formatUsd, arrivalDate } from '../../data/routes.js';
-import { shipment, formatDate } from '../../data/shipment.js';
-import { findPort } from '../../data/ports.js';
-
-const RISK_TONE = { clear: 'positive', attention: 'warning', blocked: 'accent' };
+import { getReport, getRoutes, reportPort, escapeHtml as h, formatDuration, formatNm, formatUsd, formatNumber, coverageLabel } from '../../data/routes.js';
+import { formatEta } from '../../data/shipment.js';
 
 export function createCompareScreen({ onBack, onViewRoute, onSelectRoute }) {
   const element = document.createElement('section');
@@ -16,111 +8,46 @@ export function createCompareScreen({ onBack, onViewRoute, onSelectRoute }) {
   element.id = 'screen-compare';
 
   function card(route) {
-    const [first, ...rest] = route.summary;
+    const summary = (route.explanations ?? []).filter((line) => !line.startsWith('Estimated USD')).slice(0, 3);
     return `
-      <article class="card" data-route="${route.id}">
-        <header class="card__head">
-          <p class="mono-label">${route.label}</p>
-          <h2 class="card__name">${route.name}</h2>
-        </header>
-
+      <article class="card" data-route="${h(route.id)}">
+        <header class="card__head"><p class="mono-label">${h(route.label)}</p><h2 class="card__name">${h(route.name)}</h2></header>
         <dl class="metrics">
-          <div class="metric">
-            <dt class="mono-label">Transit</dt>
-            <dd class="metric__value">${formatDuration(route.durationHours)}</dd>
-            <dd class="metric__note mono-label">Arrives ${arrivalDate(shipment.departure, route.durationHours)}</dd>
-          </div>
-          <div class="metric">
-            <dt class="mono-label">Distance</dt>
-            <dd class="metric__value">${formatNm(route.distanceNm)}</dd>
-            <dd class="metric__note mono-label">${route.speedKnots} kn service speed</dd>
-          </div>
-          <div class="metric">
-            <dt class="mono-label">Est. voyage cost</dt>
-            <dd class="metric__value">${formatUsd(route.cost.totalUsd, { compact: true })}</dd>
-            <dd class="metric__note mono-label">${formatUsd(route.cost.totalUsd)} · demo figure</dd>
-          </div>
-          <div class="metric">
-            <dt class="mono-label">Risk screening</dt>
-            <dd class="metric__value metric__value--small">
-              <span class="dot dot--${RISK_TONE[route.risk.level]}"></span>${route.risk.summary}
-            </dd>
-            <dd class="metric__note mono-label">${route.co2Tonnes.toFixed(0)} t CO₂ · ${route.fuelTonnes.toFixed(0)} t fuel</dd>
-          </div>
+          <div class="metric"><dt class="mono-label">Transit</dt><dd class="metric__value">${formatDuration(route.durationHours)}</dd><dd class="metric__note mono-label">ETA ${h(formatEta(route.eta))}</dd></div>
+          <div class="metric"><dt class="mono-label">Distance</dt><dd class="metric__value">${formatNm(route.distanceNm)}</dd><dd class="metric__note mono-label">${formatNumber(route.speedKnots, 1)} kn cruising setting</dd></div>
+          <div class="metric"><dt class="mono-label">Est. voyage cost</dt><dd class="metric__value">${formatUsd(route.cost?.totalUsd, { compact: true })}</dd><dd class="metric__note mono-label">${formatUsd(route.cost?.totalUsd)} USD · whole voyage</dd></div>
+          <div class="metric"><dt class="mono-label">Est. emissions</dt><dd class="metric__value">${formatNumber(route.emissions?.co2Tonnes)} t CO₂</dd><dd class="metric__note mono-label">${formatNumber(route.cost?.fuelTonnes)} t fuel · tank-to-wake</dd></div>
         </dl>
-
-        <ul class="tags">
-          ${route.tags.map((tag) => `<li class="tag tag--${tag.tone}">${tag.text}</li>`).join('')}
-        </ul>
-
-        <div class="card__summary" data-expanded="false">
-          <p data-role="short">${first}</p>
-          <div data-role="full" hidden>${route.summary.map((line) => `<p>${line}</p>`).join('')}</div>
-        </div>
-
+        <ul class="tags"><li class="tag tag--neutral">${h(coverageLabel(route))}</li><li class="tag tag--neutral">Compliance not assessed</li></ul>
+        <div class="card__summary">${summary.map((line) => `<p>${h(line)}</p>`).join('')}</div>
         <div class="card__actions">
-          <button class="button button--quiet" type="button" data-action="info" aria-expanded="false">
-            ${icon('info')}<span>Info</span>
-          </button>
-          <button class="button button--quiet" type="button" data-action="view">
-            ${icon('ship')}<span>View route</span>
-          </button>
-          <button class="button button--primary" type="button" data-action="select">
-            ${icon('arrow-right')}<span>Select this route</span>
-          </button>
+          <button class="button button--quiet" type="button" data-action="info" disabled title="Route information is coming soon">${icon('info')}<span>Info</span></button>
+          <button class="button button--quiet" type="button" data-action="view">${icon('ship')}<span>View route</span></button>
+          <button class="button button--primary" type="button" data-action="select">${icon('arrow-right')}<span>Select this route</span></button>
         </div>
-      </article>
-    `;
+      </article>`;
   }
-
-  const origin = findPort(shipment.originId);
-  const destination = findPort(shipment.destinationId);
-
-  element.innerHTML = `
-    <div class="sheet">
-      <header class="sheet__head">
-        <div>
-          <h1 class="wordmark">SmoothSail</h1>
-          <p class="mono-label">Three candidate routes</p>
-        </div>
-        <button class="button button--quiet" type="button" data-action="back">
-          ${icon('arrow-left')}<span>Change shipment</span>
-        </button>
-      </header>
-
-      <p class="sheet__context mono-label">
-        ${origin.name} (${origin.code}) → ${destination.name} (${destination.code})
-        · departs ${formatDate(shipment.departure)}
-        · ${shipment.cargo.containers} × ${shipment.cargo.containerType}
-        · ${shipment.cargo.grossWeightKg.toLocaleString('en-GB')} kg ${shipment.cargo.commodity.toLowerCase()}
-      </p>
-
-      <div class="cards">${ROUTES.map(card).join('')}</div>
-
-      <p class="sheet__foot mono-label">
-        Indicative routing · costs are prototype demo values, not a freight quote
-      </p>
-    </div>
-  `;
-
+  function render() {
+    const report = getReport();
+    const routes = getRoutes();
+    const origin = reportPort(report, 'origin');
+    const destination = reportPort(report, 'destination');
+    element.innerHTML = `
+      <div class="sheet">
+        <header class="sheet__head"><div><h1 class="wordmark">SmoothSail</h1><p class="mono-label">${routes.length} route options</p></div>
+          <button class="button button--quiet" type="button" data-action="back">${icon('arrow-left')}<span>Change shipment</span></button></header>
+        <p class="sheet__context mono-label">${h(origin.name)} (${h(origin.code)}) → ${h(destination.name)} (${h(destination.code)}) · departs ${h(formatEta(report?.departureTime))} · Generic container vessel</p>
+        <div class="cards">${routes.map(card).join('')}</div>
+        <p class="sheet__foot mono-label">Whole-vessel planning estimates, not freight quotes · Fuel + vessel time + canal charges · Insurance, port charges and emissions allowances excluded · Shared paths may have different speeds</p>
+      </div>`;
+  }
   element.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-action]');
-    if (!button) return;
-    const routeId = button.closest('[data-route]')?.dataset.route;
-
+    if (!button || button.disabled) return;
+    const id = button.closest('[data-route]')?.dataset.route;
     if (button.dataset.action === 'back') onBack?.();
-    if (button.dataset.action === 'view') onViewRoute?.(routeId);
-    if (button.dataset.action === 'select') onSelectRoute?.(routeId);
-
-    if (button.dataset.action === 'info') {
-      const summary = button.closest('.card').querySelector('.card__summary');
-      const expanded = summary.dataset.expanded === 'true';
-      summary.dataset.expanded = String(!expanded);
-      summary.querySelector('[data-role="short"]').hidden = !expanded;
-      summary.querySelector('[data-role="full"]').hidden = expanded;
-      button.setAttribute('aria-expanded', String(!expanded));
-    }
+    if (button.dataset.action === 'view') onViewRoute?.(id);
+    if (button.dataset.action === 'select') onSelectRoute?.(id);
   });
-
-  return { element, showGlobe: false };
+  return { element, showGlobe: false, enter: render };
 }

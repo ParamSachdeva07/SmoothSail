@@ -1,0 +1,14 @@
+{
+  "name": "tideline-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test tests/*.test.js",
+    "check": "wrangler deploy --dry-run"
+  },
+  "dependencies": { "@cloudflare/containers": "0.3.7" },
+  "devDependencies": { "wrangler": "4.152.0" },
+  "overrides": { "undici": "7.30.1" }
+}

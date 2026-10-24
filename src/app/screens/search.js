@@ -1,12 +1,7 @@
-// Screen 2 — Search panel.
-// Reveals on scroll past the fold. Flat fields: hairline border, square
-// corners, label above, icon flat beside the label. No pills, no containers
-// around icons. Touching any field stops the globe spinning; choosing a port
-// eases the globe toward that region.
-
 import { icon } from '../icons.js';
-import { PORTS, findPort, searchPorts } from '../../data/ports.js';
-import { shipment, formatDate } from '../../data/shipment.js';
+import { PORTS, findPort, searchPorts, loadPorts } from '../../data/ports.js';
+import { shipment, toRouteRequest } from '../../data/shipment.js';
+import { escapeHtml } from '../../data/routes.js';
 
 export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
   const element = document.createElement('section');
@@ -14,140 +9,183 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
   element.id = 'screen-search';
   element.innerHTML = `
     <div class="panel-column">
-      <header class="panel-head">
-        <h1 class="wordmark">SmoothSail</h1>
-        <p class="mono-label">Plan a shipment</p>
-      </header>
-
+      <header class="panel-head"><h1 class="wordmark">SmoothSail</h1><p class="mono-label">Plan a shipment</p></header>
       <form class="form" novalidate>
-        <div class="field" data-field="origin">
-          <label class="field__label" for="field-origin">${icon('map-pin')}<span>From</span></label>
-          <input class="field__input" id="field-origin" type="text" autocomplete="off"
-                 role="combobox" aria-expanded="false" aria-controls="list-origin"
-                 placeholder="Port of loading">
-          <ul class="options" id="list-origin" role="listbox" hidden></ul>
+        ${['origin', 'destination'].map((key) => `
+          <div class="field" data-field="${key}">
+            <label class="field__label" for="field-${key}">${icon(key === 'origin' ? 'map-pin' : 'flag')}<span>${key === 'origin' ? 'From' : 'To'}</span></label>
+            <input class="field__input" id="field-${key}" type="text" autocomplete="off"
+              role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="list-${key}"
+              placeholder="${key === 'origin' ? 'Port of loading' : 'Port of discharge'}" disabled>
+            <ul class="options" id="list-${key}" role="listbox" hidden></ul>
+          </div>`).join('')}
+        <div class="field">
+          <label class="field__label" for="field-departure">${icon('calendar')}<span>Departure · UTC</span></label>
+          <input class="field__input" id="field-departure" type="date" value="${shipment.departure}" min="${shipment.departure}">
         </div>
-
-        <div class="field" data-field="destination">
-          <label class="field__label" for="field-destination">${icon('flag')}<span>To</span></label>
-          <input class="field__input" id="field-destination" type="text" autocomplete="off"
-                 role="combobox" aria-expanded="false" aria-controls="list-destination"
-                 placeholder="Port of discharge">
-          <ul class="options" id="list-destination" role="listbox" hidden></ul>
-        </div>
-
-        <div class="field" data-field="departure">
-          <label class="field__label" for="field-departure">${icon('calendar')}<span>Departure</span></label>
-          <input class="field__input" id="field-departure" type="date" value="${shipment.departure}">
-        </div>
-
-        <p class="field__note mono-label" id="cargo-note"></p>
-
-        <button class="button button--primary" type="submit">
-          ${icon('search')}<span>Search routes</span>
-        </button>
-        <button class="button button--quiet" type="button" data-action="back">
-          ${icon('arrow-left')}<span>Back to globe</span>
-        </button>
+        <p class="field__note mono-label">Generic container vessel · Fastest, cheapest and lowest CO₂ · Today means depart now</p>
+        <p class="form-status mono-label" role="status" aria-live="polite"></p>
+        <button class="button button--primary" type="submit" disabled>${icon('search')}<span>Search routes</span></button>
+        <button class="button button--quiet" type="button" data-action="retry" hidden>Retry loading ports</button>
+        <button class="button button--quiet" type="button" data-action="back">${icon('arrow-left')}<span>Back to globe</span></button>
       </form>
+      <p class="panel-foot mono-label">Loading supported ports…</p>
+    </div>`;
 
-      <p class="panel-foot mono-label">
-        ${PORTS.length} ports · Indicative routing · No freight quote
-      </p>
-    </div>
-  `;
+  const form = element.querySelector('form');
+  const status = element.querySelector('.form-status');
+  const submit = element.querySelector('[type="submit"]');
+  const retry = element.querySelector('[data-action="retry"]');
+  const inputs = Object.fromEntries(['origin', 'destination', 'departure'].map((key) => [key, element.querySelector(`#field-${key}`)]));
+  let controller = null;
+  let interval = null;
+  let active = false;
 
-  const form = element.querySelector('.form');
-  const cargoNote = element.querySelector('#cargo-note');
-  const inputs = {
-    origin: element.querySelector('#field-origin'),
-    destination: element.querySelector('#field-destination'),
-    departure: element.querySelector('#field-departure')
-  };
-
-  function renderCargoNote() {
-    const { containers, containerType, grossWeightKg, commodity } = shipment.cargo;
-    cargoNote.textContent =
-      `${containers} × ${containerType} · ${grossWeightKg.toLocaleString('en-GB')} kg · ${commodity} · departs ${formatDate(shipment.departure)}`;
+  function showStatus(message, error = false) {
+    status.textContent = message;
+    status.dataset.error = String(error);
   }
-
-  function labelFor(portId) {
-    const port = findPort(portId);
+  function labelFor(id) {
+    const port = findPort(id);
     return port ? `${port.name}, ${port.country}` : '';
   }
+  function setBusy(busy) {
+    form.setAttribute('aria-busy', String(busy));
+    for (const [key, input] of Object.entries(inputs)) input.disabled = busy || (key !== 'departure' && !PORTS.length);
+    submit.disabled = busy || !PORTS.length;
+    submit.querySelector('span').textContent = busy ? 'Calculating routes…' : 'Search routes';
+    element.querySelector('[data-action="back"] span').textContent = busy ? 'Cancel and go back' : 'Back to globe';
+  }
+  function cancel() {
+    controller?.abort();
+    controller = null;
+    clearInterval(interval);
+    setBusy(false);
+  }
+  async function preparePorts() {
+    showStatus('Loading supported ports…');
+    retry.hidden = true;
+    try {
+      await loadPorts();
+      for (const key of ['origin', 'destination']) inputs[key].value = labelFor(shipment[`${key}Id`]);
+      element.querySelector('.panel-foot').textContent = `${PORTS.length} supported ports · Indicative routing · No freight quote`;
+      if (active) showStatus('');
+      setBusy(false);
+    } catch (error) {
+      showStatus(error.message, true);
+      retry.hidden = false;
+      element.querySelector('.panel-foot').textContent = 'Port catalogue unavailable';
+    }
+  }
 
-  // --- Port combobox -----------------------------------------------------
   for (const key of ['origin', 'destination']) {
     const input = inputs[key];
     const list = element.querySelector(`#list-${key}`);
-
-    const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); };
-
-    const open = (query = '') => {
-      // A field still showing its selected port lists everything, so the user
-      // can browse rather than having to clear the text first.
-      const needle = query === labelFor(shipment[`${key}Id`]) ? '' : query;
-      const matches = searchPorts(needle).slice(0, 7);
-      list.innerHTML = matches.map((port) => `
-        <li role="option" tabindex="-1" data-id="${port.id}" aria-selected="${shipment[`${key}Id`] === port.id}">
-          <span>${port.name}, ${port.country}</span>
-          <span class="options__code">${port.code}</span>
-        </li>
-      `).join('');
-      list.hidden = matches.length === 0;
-      input.setAttribute('aria-expanded', String(!list.hidden));
+    let matches = [];
+    let highlighted = -1;
+    const close = () => {
+      list.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
     };
-
-    const choose = (portId) => {
-      shipment[`${key}Id`] = portId;
-      input.value = labelFor(portId);
+    const highlight = (index) => {
+      highlighted = index;
+      [...list.children].forEach((node, i) => node.setAttribute('aria-selected', String(i === highlighted)));
+      const node = list.children[highlighted];
+      if (node) {
+        input.setAttribute('aria-activedescendant', node.id);
+        node.scrollIntoView({ block: 'nearest' });
+      }
+    };
+    const open = () => {
+      const needle = input.value === labelFor(shipment[`${key}Id`]) ? '' : input.value;
+      matches = searchPorts(needle);
+      highlighted = -1;
+      list.innerHTML = matches.length ? matches.map((port, i) => `
+        <li id="${key}-option-${i}" role="option" data-id="${escapeHtml(port.id)}" aria-selected="false">
+          <span>${escapeHtml(port.name)}, ${escapeHtml(port.country)}</span><span class="options__code">${escapeHtml(port.code)}</span>
+        </li>`).join('') : '<li role="presentation">No supported ports match</li>';
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      input.removeAttribute('aria-activedescendant');
+    };
+    const choose = (id) => {
+      const port = findPort(id);
+      if (!port) return;
+      shipment[`${key}Id`] = id;
+      input.value = labelFor(id);
+      input.removeAttribute('aria-invalid');
       close();
-      // Ease-rotate the globe toward the chosen port.
-      const port = findPort(portId);
-      if (port) getGlobe()?.flyToRegion(port.coordinates, 1.6);
-      renderCargoNote();
+      showStatus('');
+      getGlobe()?.flyToRegion(port.coordinates, 1.6);
     };
-
-    input.addEventListener('focus', () => { getGlobe()?.pauseAutoRotate(); open(input.value === labelFor(shipment[`${key}Id`]) ? '' : input.value); });
-    input.addEventListener('input', () => open(input.value));
+    input.addEventListener('focus', () => { getGlobe()?.pauseAutoRotate(); open(); });
+    input.addEventListener('input', () => {
+      shipment[`${key}Id`] = null; // Edited text must never silently submit the previous port.
+      open();
+    });
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') close();
-      if (event.key === 'Enter') {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
-        const first = list.querySelector('li');
-        if (first && !list.hidden) choose(first.dataset.id);
+        if (list.hidden) open();
+        if (matches.length) highlight((highlighted + (event.key === 'ArrowDown' ? 1 : matches.length - 1) + matches.length) % matches.length);
+      }
+      if (event.key === 'Enter' && !list.hidden) {
+        event.preventDefault();
+        if (matches.length) choose(matches[Math.max(highlighted, 0)].id);
       }
     });
-    list.addEventListener('mousedown', (event) => {
-      const option = event.target.closest('li');
+    list.addEventListener('pointerdown', (event) => {
+      const option = event.target.closest('[data-id]');
       if (option) { event.preventDefault(); choose(option.dataset.id); }
     });
-    input.addEventListener('blur', () => window.setTimeout(close, 120));
+    input.addEventListener('blur', close);
   }
 
   inputs.departure.addEventListener('focus', () => getGlobe()?.pauseAutoRotate());
-  inputs.departure.addEventListener('change', () => {
-    shipment.departure = inputs.departure.value || shipment.departure;
-    renderCargoNote();
-  });
-
-  form.addEventListener('submit', (event) => {
+  inputs.departure.addEventListener('change', () => { shipment.departure = inputs.departure.value; });
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    onSubmit?.();
+    if (controller || !PORTS.length) return;
+    let request;
+    try {
+      for (const key of ['origin', 'destination']) {
+        if (!findPort(shipment[`${key}Id`])) {
+          inputs[key].setAttribute('aria-invalid', 'true');
+          throw new Error(`Choose a ${key === 'origin' ? 'departure' : 'destination'} port from the suggestions.`);
+        }
+      }
+      shipment.departure = inputs.departure.value;
+      request = toRouteRequest();
+    } catch (error) { showStatus(error.message, true); return; }
+    const pending = new AbortController();
+    controller = pending;
+    setBusy(true);
+    const started = performance.now();
+    const progress = () => showStatus(`Calculating route options · ${Math.floor((performance.now() - started) / 1000)}s elapsed. A cold start can take longer.`);
+    progress();
+    interval = setInterval(progress, 1000);
+    try {
+      await onSubmit(request, pending.signal);
+    } catch (error) {
+      if (!pending.signal.aborted) showStatus(error.message, true);
+    } finally {
+      if (controller === pending) { controller = null; clearInterval(interval); setBusy(false); }
+    }
   });
-
-  element.querySelector('[data-action="back"]').addEventListener('click', () => onBack?.());
+  retry.addEventListener('click', preparePorts);
+  element.querySelector('[data-action="back"]').addEventListener('click', () => { cancel(); onBack?.(); });
 
   return {
-    element,
-    showGlobe: true,
+    element, showGlobe: true,
     enter() {
-      inputs.origin.value = labelFor(shipment.originId);
-      inputs.destination.value = labelFor(shipment.destinationId);
-      inputs.departure.value = shipment.departure;
-      renderCargoNote();
-      // Bring the corridor into view behind the panel.
+      active = true;
+      showStatus('');
+      inputs.departure.min = new Date().toISOString().slice(0, 10);
+      preparePorts();
       getGlobe()?.flyToRegion([62, 26], 1.1);
-    }
+    },
+    leave() { active = false; cancel(); }
   };
 }

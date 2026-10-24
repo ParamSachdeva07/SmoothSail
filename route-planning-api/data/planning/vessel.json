@@ -1,0 +1,78 @@
+{
+  "id": "generic-container-3500teu-v3",
+  "basis": "explicit_planning_assumptions_not_vessel_calibration",
+  "lengthM": 230,
+  "beamM": 32,
+  "loadedDraftM": 10.5,
+  "capacityTeu": 3500,
+  "loadedTeu": 2800,
+  "emptyTeu": 350,
+  "suezNetTonnage": 30000,
+  "panamaCategory": "super",
+  "speedKnots": [
+    12,
+    14,
+    16
+  ],
+  "auxiliaryFuelTonnesPerDay": 3,
+  "fuelUsdPerTonne": 763,
+  "fuelGrade": "VLSFO planning reference; fuel switching not modelled",
+  "dailyVesselCostUsd": 18000,
+  "usdPerSdr": 1.35,
+  "priceBasis": "dated_rotterdam_VLSFO_indication_other_prices_and_exchange_rates_assumed",
+  "weatherSpeedLossFormula": "min(0.35, 0.025 * max(0, significantWaveHeightM - 1)^2); generic sensitivity, not calibrated",
+  "excludedCosts": [
+    "Port dues and cargo handling",
+    "Insurance and war-risk premiums",
+    "Emissions allowances and regulatory charges",
+    "Bunkering stops and fuel-grade switching",
+    "Applicable canal tariff adjustments listed per transit"
+  ],
+  "emissions": {
+    "factorTonnesCo2PerTonneFuel": 3.114,
+    "fuelCategory": "assumed HFO-category residual fuel; VLSFO blend carbon content is not verified",
+    "sourceUrl": "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MEPCDocuments/MEPC.395%2882%29.pdf",
+    "sourceReference": "IMO MEPC.395(82), Annex 7 section 5; HFO factor",
+    "boundary": "tank_to_wake_CO2",
+    "excludedImpacts": [
+      "Upstream fuel production and transport",
+      "Methane and nitrous oxide; not a lifecycle CO2e estimate",
+      "NOx, SOx, particulate matter and black carbon",
+      "Underwater noise, sensitive habitats and other ecological impacts"
+    ]
+  },
+  "accuracy": {
+    "vesselCalibrated": false,
+    "validatedErrorPercent": null,
+    "fuelPriceIsMarketQuote": false,
+    "scope": "Comparative planning for one assumed 3500 TEU ship; not a representative fleet-wide consumption prediction",
+    "variationDrivers": [
+      "Ship size, hull and engine efficiency",
+      "Actual loading and draft",
+      "Hull fouling and maintenance",
+      "Speed, sea state and engine operating point",
+      "Fuel type and bunker price"
+    ],
+    "unknownWeatherPolicy": "No additional wave slowdown/current assistance where missing; label coverage; fuel/CO2 ranking remains a conditional estimate",
+    "benchmarkStatus": "checked_against_two_published_specifications_not_actual_voyage_validation",
+    "observedSpecificationComparison": "At 14 kn generic main-engine estimate is 25.46 t/day versus published 32; at 16 kn 38 versus 37.8. Not a fleet error bound.",
+    "validationSourceUrl": "https://horizonship.com/ship/2-x-container-ships-of-3000-teu-for-long-period-t-c/"
+  },
+  "referenceSpeedKnots": 16,
+  "mainFuelTonnesPerDayAtReferenceSpeed": 38,
+  "fuelPriceReference": {
+    "sourceUrl": "https://bulugo.com/bunker-prices",
+    "publisher": "Bulugo",
+    "sourceUpdatedAt": "2026-10-24T14:01:00+02:00",
+    "port": "Rotterdam",
+    "locode": "NLRTM",
+    "grade": "VLSFO",
+    "usdPerTonne": 763,
+    "basis": "public_market_indication_not_supplier_quote",
+    "limitations": "Dated reference only; quantity, credit, delivery timing, specification and bunkering location affect actual price"
+  },
+  "fuelCurveReference": {
+    "sourceUrl": "https://greenvoyage2050.imo.org/technology/speed-management/",
+    "basis": "Cubic propulsion-speed rule of thumb; not a calibrated ship curve. User-supplied speed/fuel points take precedence."
+  }
+}

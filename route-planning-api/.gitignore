@@ -1,0 +1,25 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+*.egg-info/
+node_modules/
+.next/
+*.tsbuildinfo
+data/raw/
+data/staging/
+data/cache/
+reports/
+.DS_Store
+web/public/maplibre/
+.wrangler/
+.dev.vars
+.dev.vars.*
+
+# Generated geography is retrieved from Atlas or rebuilt by preparation scripts.
+data/geography/*
+!data/geography/land.geojson

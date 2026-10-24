@@ -4,3 +4,15 @@ node_modules/
 dist/
 build/
 .DS_Store
+
+# Server credentials, generated artifacts and local caches anywhere in the repo.
+.env.*
+!.env.example
+.dev.vars*
+.wrangler/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+reports/
+*.pyc

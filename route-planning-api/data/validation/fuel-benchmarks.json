@@ -1,0 +1,37 @@
+{
+  "checkedAt": "2026-10-24",
+  "consumption": {
+    "sourceUrl": "https://horizonship.com/ship/2-x-container-ships-of-3000-teu-for-long-period-t-c/",
+    "description": "Published main-engine speed/consumption table in a broker's 3000 TEU container-vessel charter listing",
+    "evidenceType": "published_specification_not_measured_voyage_data",
+    "accessNote": "Public search-indexed table; direct page retrieval returned HTTP 403",
+    "conditions": "About figures; clean hull, even keel, deep water, calm conditions up to Beaufort 2; speed through water",
+    "points": [[14, 32], [15, 35.1], [16, 37.8], [17, 40.6], [18, 43.6], [19, 47.4], [20, 52.2]],
+    "units": ["knots", "main-engine metric tonnes per day"],
+    "limitations": ["One published example; not a fleet average", "Different ship from the generic 3500 TEU assumption", "Does not establish accuracy at 12 knots or in weather", "No measured actual-voyage fuel reconciliation"]
+  },
+  "additionalConsumptionReferences": [
+    {
+      "sourceUrl": "https://horizonship.com/ship/2-x-container-ships-2025-built-china-dwt-61000/",
+      "description": "Published 4222 TEU newbuild main-engine consumption including shaft generator",
+      "evidenceType": "published_specification_not_measured_voyage_data",
+      "accessNote": "Public search-indexed specification",
+      "conditions": "12 m loaded draft, clean hull, even keel, fair weather below Beaufort 2 / Douglas 2, no adverse swell or currents; main engine includes shaft-generator load",
+      "points": [[12, 17.5], [13, 19.5], [14, 24.5], [15, 30.5], [16, 37.5]],
+      "units": ["knots", "main-engine metric tonnes per day including shaft generator"],
+      "limitations": ["Different vessel and electrical-load allocation from the generic model", "Main-engine comparison is not a whole-vessel fuel comparison", "Listing gives additional auxiliary consumption dependent on reefer load", "Published approximate figures; not measured independent voyage validation or a fleet average"]
+    }
+  ],
+  "price": {
+    "sourceUrl": "https://bulugo.com/bunker-prices",
+    "publisher": "Bulugo",
+    "sourceUpdatedAt": "2026-10-24T14:01:00+02:00",
+    "port": "Rotterdam",
+    "locode": "NLRTM",
+    "grade": "VLSFO",
+    "usdPerTonne": 763,
+    "basis": "public_market_indication_not_supplier_quote",
+    "limitations": "Dated reference only; quantity, credit, delivery timing, specification and bunkering location affect actual price"
+  },
+  "conclusion": "Generic planning model; not validated as a vessel-specific or fleet-wide fuel-cost predictor. Two published ship specifications differ materially in their speed/consumption curves and load allocation. Agreement with either does not establish fleet accuracy. Forecast gaps and excluded costs add uncertainty."
+}

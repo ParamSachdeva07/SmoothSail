@@ -12,6 +12,8 @@ import { createLandingScreen } from './app/screens/landing.js';
 import { createSearchScreen } from './app/screens/search.js';
 import { createCompareScreen } from './app/screens/compare.js';
 import { createDetailScreen } from './app/screens/detail.js';
+import { api } from './api/client.js';
+import { setReport, findRoute } from './data/routes.js';
 
 const root = document.getElementById('app');
 
@@ -40,24 +42,30 @@ const landing = createLandingScreen({
 const search = createSearchScreen({
   getGlobe,
   onBack: () => router.go('landing'),
-  onSubmit: () => router.go('compare')
+  onSubmit: async (input, signal) => {
+    const report = await api.planRoutes(input, { signal });
+    if (signal.aborted) return;
+    setReport(report);
+    router.go('compare');
+  }
 });
+
+let selectedRouteId = null;
+function openRoute(id) {
+  if (!findRoute(id)) return;
+  selectedRouteId = id;
+  router.go('detail');
+}
 
 const compare = createCompareScreen({
   onBack: () => router.go('search'),
-  // Screens 4 and 5 are not built yet; the selected route is kept so they can
-  // pick it up without changing this call site.
-  onViewRoute: (routeId) => { selectedRouteId = routeId; router.go('detail'); },
-  onSelectRoute: (routeId) => { selectedRouteId = routeId; router.go('deepdive'); }
+  onViewRoute: openRoute,
+  onSelectRoute: openRoute
 });
-
-let selectedRouteId = 'fastest';
 
 const detail = createDetailScreen({
   getSelectedRouteId: () => selectedRouteId,
-  onBack: () => router.go('compare'),
-  onMoreInfo: () => router.go('deepdive'),
-  onChoose: () => router.go('deepdive')
+  onBack: () => router.go('compare')
 });
 
 const screens = { landing, search, compare, detail };

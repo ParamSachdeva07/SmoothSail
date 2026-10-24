@@ -1,0 +1,31 @@
+{
+  "driveFolder": "https://drive.google.com/drive/folders/1aOI7hzjruu6iypZ5F-2n-2zPEc-TtO66",
+  "downloadedAt": "2026-10-24",
+  "files": [
+    {
+      "path": "artifacts.zip",
+      "bytes": 13507338,
+      "sha256": "ad409fc7149b10f98d61190c34d9daf78b78bb8b31464cc66de1a89d09b01b5d"
+    },
+    {
+      "path": "ne_10m_coastline.zip",
+      "bytes": 3069451,
+      "sha256": "bfa04cdbcbef07ef90dfca1dabb48062eca29900a113df0f389303e255484017"
+    },
+    {
+      "path": "ne_10m_land.zip",
+      "bytes": 3269070,
+      "sha256": "e547d749445eaa0964aba76738090ec88f5e63c4585122170f98c67a7ea922dc"
+    },
+    {
+      "path": "ne_10m_ocean.zip",
+      "bytes": 3189765,
+      "sha256": "db626fcd5d50b096b156c78a2cc95011b39f32a61b4e47d147e3f7a77b8b2719"
+    },
+    {
+      "path": "searoute-master.zip",
+      "bytes": 114205776,
+      "sha256": "f815b0c6f7127490cc91ed722161bb4bad35d9946422e9810c42421d56c75177"
+    }
+  ]
+}

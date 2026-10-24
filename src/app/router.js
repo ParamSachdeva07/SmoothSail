@@ -9,6 +9,7 @@ export function createRouter({ root, screens }) {
     for (const [screenId, screen] of Object.entries(screens)) {
       const active = screenId === id;
       screen.element.dataset.active = String(active);
+      screen.element.inert = !active;
       if (active) screen.enter?.(payload);
       else if (screenId === current) screen.leave?.();
     }

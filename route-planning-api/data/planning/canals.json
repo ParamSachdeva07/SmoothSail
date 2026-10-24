@@ -1,0 +1,198 @@
+{
+  "version": "canals-2026-10-24-v1",
+  "retrievedAt": "2026-10-24T17:02:31.302693+00:00",
+  "geometrySource": "Eurostat SeaRoute; pinned existing canal polylines, planning use only",
+  "canals": {
+    "suez": {
+      "name": "Suez Canal",
+      "reviewedEdges": {
+        "23668363aa61e8d1aee57370": {
+          "coordinatesSha256": "e7ff4c4f555c1e6c107744fd8debd7b4b33b2277d04747e89840117509651065",
+          "coordinates": [
+            [
+              32.56125,
+              29.9315
+            ],
+            [
+              32.58775,
+              29.97425
+            ],
+            [
+              32.5605,
+              30.20875
+            ],
+            [
+              32.3795,
+              30.338
+            ],
+            [
+              32.303,
+              30.56625
+            ],
+            [
+              32.338,
+              30.686
+            ],
+            [
+              32.3155,
+              31.12525
+            ],
+            [
+              32.3795,
+              31.30475
+            ]
+          ],
+          "from": "n_038b5e020aa36c8d",
+          "to": "n_62622b75c909fd3c"
+        },
+        "4e477830b4006bcae583a9fe": {
+          "coordinatesSha256": "0d706e493bdf0d13035bc04df7e8920e506a7bc6d05ae0d3b90547a8809f4bcb",
+          "coordinates": [
+            [
+              32.57625,
+              29.6825
+            ],
+            [
+              32.56125,
+              29.9315
+            ]
+          ],
+          "from": "n_cc37f78ebc5e4560",
+          "to": "n_038b5e020aa36c8d",
+          "role": "southern_canal_approach"
+        }
+      },
+      "networkDistanceNm": 103.2983818398861,
+      "transitHours": 12,
+      "waitingHours": 12,
+      "serviceAllowanceUsd": 15000,
+      "timingBasis": "planning_assumption_not_live_queue",
+      "physicalEligibility": "not_assessed_for_actual_vessel",
+      "status": "planning_available_current_operational_permission_not_verified",
+      "tariff": {
+        "sourceUrl": "https://www.suezcanal.gov.eg/English/Navigation/Tolls/Pages/TollsTable.aspx",
+        "effectiveFrom": "2024-01-15",
+        "ladenSdrBands": [
+          {
+            "tonnage": 5000,
+            "rate": 11.04
+          },
+          {
+            "tonnage": 5000,
+            "rate": 7.58
+          },
+          {
+            "tonnage": 10000,
+            "rate": 5.89
+          },
+          {
+            "tonnage": 20000,
+            "rate": 4.13
+          },
+          {
+            "tonnage": 30000,
+            "rate": 3.82
+          },
+          {
+            "tonnage": 50000,
+            "rate": 3.01
+          },
+          {
+            "tonnage": 60000,
+            "rate": 2.94
+          },
+          {
+            "tonnage": 0,
+            "rate": 2.88
+          }
+        ],
+        "excludedAdjustments": [
+          "Route-specific rebates",
+          "Deck-container and other circular surcharges",
+          "Actual transit-date SDR conversion",
+          "Agent quotation and service fees beyond the explicit allowance"
+        ],
+        "surchargeRate": 0.12,
+        "surchargeEffectiveFrom": "2026-07-15",
+        "surchargeSourceUrl": "https://www.suezcanal.gov.eg/English/Navigation/NavigationCirculars/Pages/Cir_02_2026.aspx"
+      }
+    },
+    "panama": {
+      "name": "Panama Canal",
+      "reviewedEdges": {
+        "29171a19dccfd0f27d02e705": {
+          "coordinatesSha256": "b8874a3125592df6cdde523c2eb1716e63fd2dd6d032840d86cc503b44338a95",
+          "coordinates": [
+            [
+              -79.91975,
+              9.31525
+            ],
+            [
+              -79.92,
+              9.19925
+            ],
+            [
+              -79.8625,
+              9.185
+            ]
+          ],
+          "from": "n_174ec7ae8243fbbc",
+          "to": "n_22f15424a128c990"
+        },
+        "8b8099b3375570e1ec57e878": {
+          "coordinatesSha256": "7eb0f1236c8999e886cdd7c1dc9a1bed2e38208bc6e658a554b6863f2bda80dc",
+          "coordinates": [
+            [
+              -79.8625,
+              9.185
+            ],
+            [
+              -79.8015,
+              9.1275
+            ],
+            [
+              -79.691,
+              9.1075
+            ],
+            [
+              -79.63025,
+              9.02825
+            ],
+            [
+              -79.51287500000001,
+              8.869625
+            ]
+          ],
+          "from": "n_22f15424a128c990",
+          "to": "n_ba4e860faffa2602"
+        }
+      },
+      "networkDistanceNm": 39.81140087593779,
+      "transitHours": 10,
+      "waitingHours": 24,
+      "serviceAllowanceUsd": 15000,
+      "timingBasis": "planning_assumption_not_live_queue",
+      "physicalEligibility": "not_assessed_for_actual_vessel",
+      "status": "planning_available_current_operational_permission_not_verified",
+      "tariff": {
+        "sourceUrl": "https://pancanal.com/en/maritime-services/maritime-tariff/",
+        "effectiveFrom": "2025-01-01",
+        "fixedUsd": 100000,
+        "capacityUsdPerTeu": 40,
+        "loadedUsdPerTeu": 35,
+        "emptyUsdPerTeu": 6,
+        "tariffItems": [
+          "1010.FS01",
+          "1010.PAS1",
+          "1010.PLS1",
+          "1010.PES1"
+        ],
+        "excludedAdjustments": [
+          "Booking/auction premiums",
+          "Freshwater and other supplementary fees",
+          "Actual service fees beyond the explicit allowance"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,1694 @@
+{
+  "$defs": {
+    "CanalTransit": {
+      "additionalProperties": false,
+      "properties": {
+        "canalId": {
+          "title": "Canalid",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "entryTime": {
+          "format": "date-time",
+          "title": "Entrytime",
+          "type": "string"
+        },
+        "transitStartTime": {
+          "format": "date-time",
+          "title": "Transitstarttime",
+          "type": "string"
+        },
+        "exitTime": {
+          "format": "date-time",
+          "title": "Exittime",
+          "type": "string"
+        },
+        "waitingHours": {
+          "title": "Waitinghours",
+          "type": "number"
+        },
+        "transitHours": {
+          "title": "Transithours",
+          "type": "number"
+        },
+        "tollUsd": {
+          "title": "Tollusd",
+          "type": "number"
+        },
+        "serviceAllowanceUsd": {
+          "title": "Serviceallowanceusd",
+          "type": "number"
+        },
+        "tariff": {
+          "additionalProperties": true,
+          "title": "Tariff",
+          "type": "object"
+        },
+        "timingBasis": {
+          "title": "Timingbasis",
+          "type": "string"
+        },
+        "operationalStatus": {
+          "title": "Operationalstatus",
+          "type": "string"
+        }
+      },
+      "required": [
+        "canalId",
+        "name",
+        "entryTime",
+        "transitStartTime",
+        "exitTime",
+        "waitingHours",
+        "transitHours",
+        "tollUsd",
+        "serviceAllowanceUsd",
+        "tariff",
+        "timingBasis",
+        "operationalStatus"
+      ],
+      "title": "CanalTransit",
+      "type": "object"
+    },
+    "ComplianceCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "not_assessed",
+            "limited_screening"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "missingData": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missingdata",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "evidence",
+        "missingData"
+      ],
+      "title": "ComplianceCheck",
+      "type": "object"
+    },
+    "ComplianceHandoff": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "const": "not_assessed",
+          "default": "not_assessed",
+          "title": "Status",
+          "type": "string"
+        },
+        "decision": {
+          "default": null,
+          "title": "Decision",
+          "type": "null"
+        },
+        "declaredContext": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComplianceInput"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "declarationStatus": {
+          "enum": [
+            "user_provided_unverified",
+            "not_provided"
+          ],
+          "title": "Declarationstatus",
+          "type": "string"
+        },
+        "declarationsUsedForRouting": {
+          "default": false,
+          "title": "Declarationsusedforrouting",
+          "type": "boolean"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/ComplianceCheck"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "interpretationRules": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Interpretationrules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "declarationStatus",
+        "checks",
+        "interpretationRules"
+      ],
+      "title": "ComplianceHandoff",
+      "type": "object"
+    },
+    "ComplianceInput": {
+      "additionalProperties": false,
+      "description": "Optional user declarations for downstream review; not verified or used to change routing.",
+      "properties": {
+        "vessel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DeclaredVessel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cargo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DeclaredCargo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "parties": {
+          "items": {
+            "$ref": "#/$defs/DeclaredParty"
+          },
+          "maxItems": 100,
+          "title": "Parties",
+          "type": "array"
+        },
+        "applicableJurisdictions": {
+          "items": {
+            "pattern": "^[A-Z]{2}$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Applicablejurisdictions",
+          "type": "array"
+        }
+      },
+      "title": "ComplianceInput",
+      "type": "object"
+    },
+    "ConditionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "forecast",
+            "simulated",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "snapshotId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshotid"
+        },
+        "missingReason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missingreason"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "status"
+      ],
+      "title": "ConditionEvidence",
+      "type": "object"
+    },
+    "CostBreakdown": {
+      "additionalProperties": false,
+      "properties": {
+        "currency": {
+          "const": "USD",
+          "default": "USD",
+          "title": "Currency",
+          "type": "string"
+        },
+        "period": {
+          "const": "entire_voyage",
+          "default": "entire_voyage",
+          "title": "Period",
+          "type": "string"
+        },
+        "fuelTonnes": {
+          "title": "Fueltonnes",
+          "type": "number"
+        },
+        "fuelUsd": {
+          "title": "Fuelusd",
+          "type": "number"
+        },
+        "fuelUsdPerTonne": {
+          "title": "Fuelusdpertonne",
+          "type": "number"
+        },
+        "averageFuelTonnesPerDay": {
+          "title": "Averagefueltonnesperday",
+          "type": "number"
+        },
+        "averageFuelUsdPerDay": {
+          "title": "Averagefuelusdperday",
+          "type": "number"
+        },
+        "timeUsd": {
+          "title": "Timeusd",
+          "type": "number"
+        },
+        "canalTollsUsd": {
+          "title": "Canaltollsusd",
+          "type": "number"
+        },
+        "canalServiceAllowanceUsd": {
+          "title": "Canalserviceallowanceusd",
+          "type": "number"
+        },
+        "totalUsd": {
+          "title": "Totalusd",
+          "type": "number"
+        },
+        "basis": {
+          "title": "Basis",
+          "type": "string"
+        },
+        "modelId": {
+          "title": "Modelid",
+          "type": "string"
+        },
+        "excludedCosts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Excludedcosts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fuelTonnes",
+        "fuelUsd",
+        "fuelUsdPerTonne",
+        "averageFuelTonnesPerDay",
+        "averageFuelUsdPerDay",
+        "timeUsd",
+        "canalTollsUsd",
+        "canalServiceAllowanceUsd",
+        "totalUsd",
+        "basis",
+        "modelId",
+        "excludedCosts"
+      ],
+      "title": "CostBreakdown",
+      "type": "object"
+    },
+    "CoverageMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "knownHours": {
+          "title": "Knownhours",
+          "type": "number"
+        },
+        "unknownHours": {
+          "title": "Unknownhours",
+          "type": "number"
+        },
+        "percent": {
+          "title": "Percent",
+          "type": "number"
+        }
+      },
+      "required": [
+        "knownHours",
+        "unknownHours",
+        "percent"
+      ],
+      "title": "CoverageMetric",
+      "type": "object"
+    },
+    "DeclaredCargo": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "hsCodes": {
+          "items": {
+            "pattern": "^\\d{6,10}$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Hscodes",
+          "type": "array"
+        },
+        "unNumbers": {
+          "items": {
+            "pattern": "^UN\\d{4}$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Unnumbers",
+          "type": "array"
+        },
+        "originCountryCode": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Origincountrycode"
+        },
+        "destinationCountryCode": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destinationcountrycode"
+        }
+      },
+      "title": "DeclaredCargo",
+      "type": "object"
+    },
+    "DeclaredParty": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "enum": [
+            "owner",
+            "beneficial_owner",
+            "operator",
+            "charterer",
+            "shipper",
+            "consignee",
+            "other"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "countryCode": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Countrycode"
+        },
+        "registrationId": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Registrationid"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "DeclaredParty",
+      "type": "object"
+    },
+    "DeclaredVessel": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "imoNumber": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{7}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Imonumber"
+        },
+        "mmsi": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{9}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mmsi"
+        },
+        "flagCountryCode": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flagcountrycode"
+        },
+        "lengthM": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lengthm"
+        },
+        "beamM": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beamm"
+        },
+        "draftM": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Draftm"
+        },
+        "airDraftM": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Airdraftm"
+        },
+        "iceClass": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Iceclass"
+        }
+      },
+      "title": "DeclaredVessel",
+      "type": "object"
+    },
+    "EmissionsEstimate": {
+      "additionalProperties": false,
+      "properties": {
+        "co2Tonnes": {
+          "title": "Co2Tonnes",
+          "type": "number"
+        },
+        "factorTonnesCo2PerTonneFuel": {
+          "title": "Factortonnesco2Pertonnefuel",
+          "type": "number"
+        },
+        "fuelCategory": {
+          "title": "Fuelcategory",
+          "type": "string"
+        },
+        "boundary": {
+          "const": "tank_to_wake_CO2",
+          "default": "tank_to_wake_CO2",
+          "title": "Boundary",
+          "type": "string"
+        },
+        "basis": {
+          "title": "Basis",
+          "type": "string"
+        },
+        "sourceUrl": {
+          "title": "Sourceurl",
+          "type": "string"
+        },
+        "excludedImpacts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Excludedimpacts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "co2Tonnes",
+        "factorTonnesCo2PerTonneFuel",
+        "fuelCategory",
+        "basis",
+        "sourceUrl",
+        "excludedImpacts"
+      ],
+      "title": "EmissionsEstimate",
+      "type": "object"
+    },
+    "NetworkReference": {
+      "additionalProperties": false,
+      "properties": {
+        "fromNodeId": {
+          "title": "Fromnodeid",
+          "type": "string"
+        },
+        "toNodeId": {
+          "title": "Tonodeid",
+          "type": "string"
+        },
+        "sourceEdgeId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceedgeid"
+        },
+        "passageIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Passageids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fromNodeId",
+        "toNodeId"
+      ],
+      "title": "NetworkReference",
+      "type": "object"
+    },
+    "PortContext": {
+      "additionalProperties": false,
+      "properties": {
+        "locode": {
+          "title": "Locode",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "countryCode": {
+          "title": "Countrycode",
+          "type": "string"
+        },
+        "catalogueCoordinates": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cataloguecoordinates"
+        },
+        "approachCoordinates": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Approachcoordinates",
+          "type": "array"
+        },
+        "routingNodeId": {
+          "title": "Routingnodeid",
+          "type": "string"
+        },
+        "catalogueImportVersion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalogueimportversion"
+        },
+        "approachBasis": {
+          "default": "approximate offshore network access point",
+          "title": "Approachbasis",
+          "type": "string"
+        },
+        "portwatchLocationId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Portwatchlocationid"
+        },
+        "latestActivityDate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latestactivitydate"
+        },
+        "activityInterpretation": {
+          "default": "Activity observation only; does not establish closure, delay or permission.",
+          "title": "Activityinterpretation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "locode",
+        "name",
+        "countryCode",
+        "approachCoordinates",
+        "routingNodeId"
+      ],
+      "title": "PortContext",
+      "type": "object"
+    },
+    "ReportMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinateSystem": {
+          "additionalProperties": true,
+          "title": "Coordinatesystem",
+          "type": "object"
+        },
+        "units": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Units",
+          "type": "object"
+        },
+        "request": {
+          "additionalProperties": true,
+          "title": "Request",
+          "type": "object"
+        },
+        "ports": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PortContext"
+          },
+          "title": "Ports",
+          "type": "object"
+        },
+        "routingMethod": {
+          "additionalProperties": true,
+          "title": "Routingmethod",
+          "type": "object"
+        },
+        "vesselModel": {
+          "additionalProperties": true,
+          "title": "Vesselmodel",
+          "type": "object"
+        },
+        "dataProvenance": {
+          "additionalProperties": true,
+          "title": "Dataprovenance",
+          "type": "object"
+        },
+        "restrictionCatalog": {
+          "items": {
+            "$ref": "#/$defs/RestrictionRecord"
+          },
+          "title": "Restrictioncatalog",
+          "type": "array"
+        },
+        "complianceHandoff": {
+          "$ref": "#/$defs/ComplianceHandoff"
+        },
+        "calculationSeconds": {
+          "title": "Calculationseconds",
+          "type": "number"
+        },
+        "phaseSeconds": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Phaseseconds",
+          "type": "object"
+        }
+      },
+      "required": [
+        "coordinateSystem",
+        "units",
+        "request",
+        "ports",
+        "routingMethod",
+        "vesselModel",
+        "dataProvenance",
+        "restrictionCatalog",
+        "complianceHandoff",
+        "calculationSeconds"
+      ],
+      "title": "ReportMetadata",
+      "type": "object"
+    },
+    "RestrictionRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action"
+        },
+        "verified": {
+          "default": false,
+          "title": "Verified",
+          "type": "boolean"
+        },
+        "passageId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passageid"
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry"
+        },
+        "validFrom": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validfrom"
+        },
+        "validTo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validto"
+        },
+        "sourceUrl": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceurl"
+        },
+        "sourceReference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourcereference"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "RestrictionRecord",
+      "type": "object"
+    },
+    "Route": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "strategy": {
+          "enum": [
+            "fastest",
+            "economical",
+            "lowest_emissions"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "geometry": {
+          "additionalProperties": true,
+          "title": "Geometry",
+          "type": "object"
+        },
+        "distanceNm": {
+          "title": "Distancenm",
+          "type": "number"
+        },
+        "durationHours": {
+          "title": "Durationhours",
+          "type": "number"
+        },
+        "eta": {
+          "format": "date-time",
+          "title": "Eta",
+          "type": "string"
+        },
+        "speedKnots": {
+          "title": "Speedknots",
+          "type": "number"
+        },
+        "exposureScore": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Exposurescore"
+        },
+        "forecastCoveragePercent": {
+          "title": "Forecastcoveragepercent",
+          "type": "number"
+        },
+        "unknownWeatherHours": {
+          "title": "Unknownweatherhours",
+          "type": "number"
+        },
+        "maxWaveHeightM": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Maxwaveheightm"
+        },
+        "maxWindKnots": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Maxwindknots"
+        },
+        "roughSeaHours": {
+          "title": "Roughseahours",
+          "type": "number"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/Segment"
+          },
+          "title": "Segments",
+          "type": "array"
+        },
+        "passageIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Passageids",
+          "type": "array"
+        },
+        "explanations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Explanations",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "complianceStatus": {
+          "default": "not_assessed",
+          "title": "Compliancestatus",
+          "type": "string"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RouteMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cost": {
+          "$ref": "#/$defs/CostBreakdown"
+        },
+        "emissions": {
+          "$ref": "#/$defs/EmissionsEstimate"
+        },
+        "canalTransits": {
+          "items": {
+            "$ref": "#/$defs/CanalTransit"
+          },
+          "title": "Canaltransits",
+          "type": "array"
+        },
+        "sailingHours": {
+          "title": "Sailinghours",
+          "type": "number"
+        },
+        "canalHours": {
+          "default": 0,
+          "title": "Canalhours",
+          "type": "number"
+        },
+        "waitingHours": {
+          "default": 0,
+          "title": "Waitinghours",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "strategy",
+        "geometry",
+        "distanceNm",
+        "durationHours",
+        "eta",
+        "speedKnots",
+        "exposureScore",
+        "forecastCoveragePercent",
+        "unknownWeatherHours",
+        "maxWaveHeightM",
+        "maxWindKnots",
+        "roughSeaHours",
+        "segments",
+        "passageIds",
+        "explanations",
+        "warnings",
+        "cost",
+        "emissions",
+        "sailingHours"
+      ],
+      "title": "Route",
+      "type": "object"
+    },
+    "RouteEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "referenceId": {
+          "title": "Referenceid",
+          "type": "string"
+        },
+        "firstSegmentIndex": {
+          "title": "Firstsegmentindex",
+          "type": "integer"
+        },
+        "lastSegmentIndex": {
+          "title": "Lastsegmentindex",
+          "type": "integer"
+        },
+        "entryTime": {
+          "format": "date-time",
+          "title": "Entrytime",
+          "type": "string"
+        },
+        "exitTime": {
+          "format": "date-time",
+          "title": "Exittime",
+          "type": "string"
+        }
+      },
+      "required": [
+        "referenceId",
+        "firstSegmentIndex",
+        "lastSegmentIndex",
+        "entryTime",
+        "exitTime"
+      ],
+      "title": "RouteEvent",
+      "type": "object"
+    },
+    "RouteMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "contentSha256": {
+          "title": "Contentsha256",
+          "type": "string"
+        },
+        "geometrySha256": {
+          "title": "Geometrysha256",
+          "type": "string"
+        },
+        "boundingBoxes": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Boundingboxes",
+          "type": "array"
+        },
+        "crossesAntimeridian": {
+          "title": "Crossesantimeridian",
+          "type": "boolean"
+        },
+        "forecastSnapshotIdsUsed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forecastsnapshotidsused",
+          "type": "array"
+        },
+        "coverage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CoverageMetric"
+          },
+          "title": "Coverage",
+          "type": "object"
+        },
+        "unknownIntervals": {
+          "items": {
+            "$ref": "#/$defs/UnknownInterval"
+          },
+          "title": "Unknownintervals",
+          "type": "array"
+        },
+        "passageEvents": {
+          "items": {
+            "$ref": "#/$defs/RouteEvent"
+          },
+          "title": "Passageevents",
+          "type": "array"
+        },
+        "restrictionEvents": {
+          "items": {
+            "$ref": "#/$defs/RouteEvent"
+          },
+          "title": "Restrictionevents",
+          "type": "array"
+        },
+        "restrictionScreening": {
+          "additionalProperties": true,
+          "title": "Restrictionscreening",
+          "type": "object"
+        },
+        "qualityFlags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Qualityflags",
+          "type": "array"
+        },
+        "complianceStatus": {
+          "const": "not_assessed",
+          "default": "not_assessed",
+          "title": "Compliancestatus",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contentSha256",
+        "geometrySha256",
+        "boundingBoxes",
+        "crossesAntimeridian",
+        "forecastSnapshotIdsUsed",
+        "coverage",
+        "unknownIntervals",
+        "passageEvents",
+        "restrictionEvents",
+        "restrictionScreening",
+        "qualityFlags"
+      ],
+      "title": "RouteMetadata",
+      "type": "object"
+    },
+    "Segment": {
+      "additionalProperties": false,
+      "properties": {
+        "geometry": {
+          "additionalProperties": true,
+          "title": "Geometry",
+          "type": "object"
+        },
+        "entryTime": {
+          "format": "date-time",
+          "title": "Entrytime",
+          "type": "string"
+        },
+        "exitTime": {
+          "format": "date-time",
+          "title": "Exittime",
+          "type": "string"
+        },
+        "distanceNm": {
+          "title": "Distancenm",
+          "type": "number"
+        },
+        "speedThroughWaterKnots": {
+          "title": "Speedthroughwaterknots",
+          "type": "number"
+        },
+        "waveHeightM": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Waveheightm"
+        },
+        "windKnots": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Windknots"
+        },
+        "alongTrackCurrentKnots": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Alongtrackcurrentknots"
+        },
+        "noticeIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Noticeids",
+          "type": "array"
+        },
+        "sampleTime": {
+          "format": "date-time",
+          "title": "Sampletime",
+          "type": "string"
+        },
+        "networkReference": {
+          "$ref": "#/$defs/NetworkReference"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SegmentMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "default": "sailing",
+          "enum": [
+            "sailing",
+            "canal_transit",
+            "canal_wait"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "fuelTonnes": {
+          "default": 0,
+          "title": "Fueltonnes",
+          "type": "number"
+        }
+      },
+      "required": [
+        "geometry",
+        "entryTime",
+        "exitTime",
+        "distanceNm",
+        "speedThroughWaterKnots",
+        "waveHeightM",
+        "windKnots",
+        "alongTrackCurrentKnots",
+        "sampleTime",
+        "networkReference"
+      ],
+      "title": "Segment",
+      "type": "object"
+    },
+    "SegmentMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "referenceId": {
+          "title": "Referenceid",
+          "type": "string"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "start": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Start",
+          "type": "array"
+        },
+        "end": {
+          "items": {
+            "type": "number"
+          },
+          "title": "End",
+          "type": "array"
+        },
+        "midpoint": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Midpoint",
+          "type": "array"
+        },
+        "courseDegreesTrue": {
+          "title": "Coursedegreestrue",
+          "type": "number"
+        },
+        "durationHours": {
+          "title": "Durationhours",
+          "type": "number"
+        },
+        "elapsedStartHours": {
+          "title": "Elapsedstarthours",
+          "type": "number"
+        },
+        "elapsedEndHours": {
+          "title": "Elapsedendhours",
+          "type": "number"
+        },
+        "cumulativeStartNm": {
+          "title": "Cumulativestartnm",
+          "type": "number"
+        },
+        "cumulativeEndNm": {
+          "title": "Cumulativeendnm",
+          "type": "number"
+        },
+        "speedOverGroundKnots": {
+          "title": "Speedovergroundknots",
+          "type": "number"
+        },
+        "conditions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ConditionEvidence"
+          },
+          "title": "Conditions",
+          "type": "object"
+        },
+        "jurisdictionStatus": {
+          "const": "not_assessed",
+          "default": "not_assessed",
+          "title": "Jurisdictionstatus",
+          "type": "string"
+        },
+        "jurisdictionIds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jurisdictionids"
+        }
+      },
+      "required": [
+        "referenceId",
+        "index",
+        "start",
+        "end",
+        "midpoint",
+        "courseDegreesTrue",
+        "durationHours",
+        "elapsedStartHours",
+        "elapsedEndHours",
+        "cumulativeStartNm",
+        "cumulativeEndNm",
+        "speedOverGroundKnots",
+        "conditions"
+      ],
+      "title": "SegmentMetadata",
+      "type": "object"
+    },
+    "UnknownInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "variable": {
+          "title": "Variable",
+          "type": "string"
+        },
+        "firstSegmentIndex": {
+          "title": "Firstsegmentindex",
+          "type": "integer"
+        },
+        "lastSegmentIndex": {
+          "title": "Lastsegmentindex",
+          "type": "integer"
+        },
+        "entryTime": {
+          "format": "date-time",
+          "title": "Entrytime",
+          "type": "string"
+        },
+        "exitTime": {
+          "format": "date-time",
+          "title": "Exittime",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variable",
+        "firstSegmentIndex",
+        "lastSegmentIndex",
+        "entryTime",
+        "exitTime"
+      ],
+      "title": "UnknownInterval",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "1.4.0",
+      "default": "1.4.0",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "reportId": {
+      "title": "Reportid",
+      "type": "string"
+    },
+    "origin": {
+      "title": "Origin",
+      "type": "string"
+    },
+    "destination": {
+      "title": "Destination",
+      "type": "string"
+    },
+    "departureTime": {
+      "format": "date-time",
+      "title": "Departuretime",
+      "type": "string"
+    },
+    "generatedAt": {
+      "format": "date-time",
+      "title": "Generatedat",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "demo",
+        "mongo"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "assumptions": {
+      "additionalProperties": true,
+      "title": "Assumptions",
+      "type": "object"
+    },
+    "routes": {
+      "items": {
+        "$ref": "#/$defs/Route"
+      },
+      "title": "Routes",
+      "type": "array"
+    },
+    "unavailableStrategies": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Unavailablestrategies",
+      "type": "array"
+    },
+    "overlays": {
+      "additionalProperties": true,
+      "title": "Overlays",
+      "type": "object"
+    },
+    "waveGrid": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Wavegrid"
+    },
+    "sources": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "notices": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notices",
+      "type": "array"
+    },
+    "metadata": {
+      "$ref": "#/$defs/ReportMetadata"
+    }
+  },
+  "required": [
+    "origin",
+    "destination",
+    "departureTime",
+    "mode",
+    "assumptions",
+    "routes",
+    "unavailableStrategies",
+    "overlays",
+    "sources",
+    "metadata"
+  ],
+  "title": "RouteResponse",
+  "type": "object"
+}

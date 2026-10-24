@@ -1,62 +1,37 @@
-// Demo shipment state.
-//
-// `toVoyageInput()` emits exactly the MVP's `VoyageInput` shape
-// (AUDIT-MVP.md §6): origin/destination are full Port objects, `departure` is
-// YYYY-MM-DD, and the remaining fields take the MVP's own defaults
-// (speed 18 kn, container, balanced, canals open). When the real engine is
-// wired, the call becomes:
-//
-//   planRoutes(network, toVoyageInput(state), marine)
-//
-// PLACEHOLDER: everything else on this object is demo cargo detail for the
-// prototype — the MVP collects a goods category but has no cost model at all.
-
-import { findPort } from './ports.js';
-
+// Form state lasts only for the current page session. Vessel assumptions and
+// all voyage calculations belong to the API, not to a second frontend model.
 export const shipment = {
-  originId: 'ningbo',
-  destinationId: 'felixstowe',
-  departure: '2026-11-23',
-
-  // Cargo — fabric rolls, one full container load.
-  cargo: {
-    description: 'Fabric rolls — woven textile',
-    containers: 1,
-    containerType: "40ft dry",
-    grossWeightKg: 18500,
-    volumeCbm: 58,
-    commodity: 'Textiles'
-  },
-
-  // Commercial terms behind the alert on screen 5.
-  letterOfCredit: {
-    reference: 'LC-4471-NB',
-    latestShipmentDate: '2026-11-30',
-    expiry: '2026-12-15'
-  },
-
-  // Vessel defaults, matching the MVP's Dashboard defaults.
-  speedKnots: 18,
-  vessel: 'container',
-  priority: 'balanced'
+  originId: 'NLRTM',
+  destinationId: 'SGSIN',
+  departure: new Date().toISOString().slice(0, 10)
 };
 
-export function toVoyageInput(state = shipment) {
+export function toRouteRequest(state = shipment, now = new Date()) {
+  if (!state.originId || !state.destinationId) throw new Error('Choose both ports from the suggestions.');
+  if (state.originId === state.destinationId) throw new Error('Choose two different ports.');
+  const day = state.departure;
+  const date = new Date(`${day}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== day) {
+    throw new Error('Choose a valid departure date.');
+  }
+  const today = now.toISOString().slice(0, 10);
+  if (day < today) throw new Error('Choose today or a future departure date.');
   return {
-    origin: findPort(state.originId),
-    destination: findPort(state.destinationId),
-    departure: state.departure,
-    speed: state.speedKnots,
-    vessel: state.vessel,
-    priority: state.priority,
-    avoidSuez: false,
-    avoidPanama: false
+    origin: state.originId,
+    destination: state.destinationId,
+    // Today means depart now; future dates use midnight UTC.
+    ...(day === today ? {} : { departureTime: date.toISOString() })
   };
 }
 
 export function formatDate(iso) {
-  const date = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return iso;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${date.getUTCDate()} ${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+  if (!iso) return 'Unavailable';
+  const date = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
+  if (!Number.isFinite(date.getTime())) return 'Unavailable';
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+export function formatEta(iso) {
+  if (!iso || !Number.isFinite(new Date(iso).getTime())) return 'Unavailable';
+  return `${formatDate(iso)} · ${new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso))} UTC`;
 }

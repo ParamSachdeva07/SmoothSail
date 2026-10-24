@@ -1,0 +1,10 @@
+**
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!service/
+!service/*.py
+!data/
+!data/planning/
+!data/planning/*.json
+!data/portwatch_mappings.json

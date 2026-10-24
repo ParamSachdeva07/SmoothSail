@@ -13,10 +13,10 @@ export function createLandingScreen({ getGlobe, onAdvance }) {
     <header class="landing__identity">
       <h1 class="wordmark">SmoothSail</h1>
       <div class="landing__rule"></div>
-      <p class="lede">Ocean freight routing, voyage cost and compliance screening — from one port pair and a departure date.</p>
+      <p class="lede">Ocean freight routing, voyage cost and emissions estimates — from one port pair and a departure date.</p>
     </header>
 
-    <p class="landing__scroll-cue mono-label">Scroll to plan a shipment</p>
+    <button type="button" class="landing__scroll-cue mono-label">Plan a shipment · scroll or click</button>
 
     <p class="landing__footer mono-label">
       <span>SmoothSail / Ocean freight</span>
@@ -27,6 +27,7 @@ export function createLandingScreen({ getGlobe, onAdvance }) {
   // Scrolling past the fold reveals the search panel (screen 2). The wheel is
   // listened for on the app root (main.js) because the globe canvas sits above
   // this overlay and keeps its own scroll-to-zoom untouched.
+  element.querySelector('.landing__scroll-cue').addEventListener('click', () => onAdvance?.());
   let wheelTravel = 0;
 
   function handleWheel(deltaY) {
