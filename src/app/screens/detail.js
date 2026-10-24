@@ -39,15 +39,23 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
           </div>
         </div>
       </div>
+      <button class="route-summary__show" type="button" data-action="toggle-summary" aria-expanded="false" hidden>Show</button>
       <div class="route-summary" aria-label="Route summary">
+        <button class="route-summary__hide" type="button" data-action="toggle-summary" aria-expanded="true">Hide</button>
         <dl class="route-summary__metrics">
           <div class="metric"><dt class="mono-label">Transit</dt><dd class="metric__value" data-role="duration"></dd></div>
           <div class="metric"><dt class="mono-label">Distance</dt><dd class="metric__value" data-role="distance"></dd></div>
           <div class="metric"><dt class="mono-label">Est. cost</dt><dd class="metric__value" data-role="cost"></dd></div>
           <div class="metric"><dt class="mono-label">Emission</dt><dd class="metric__value" data-role="emissions"></dd></div>
+          <div class="metric route-summary__eta"><dt class="mono-label">ETA · UTC</dt><dd class="metric__value" data-role="arrival"></dd></div>
+          <div class="route-summary__wave" data-role="summary-wave-scale" aria-label="Wave forecast scale">
+            <div class="route-summary__wave-title"><i class="route-summary__wave-swatch" aria-hidden="true"></i><span>Wave forecast</span></div>
+            <div class="wave-scale__ramp" aria-hidden="true"></div>
+            <div class="wave-scale__labels"><span>0</span><span>2</span><span>4</span><span>6+ m</span></div>
+          </div>
         </dl>
         <div class="route-summary__footer">
-          <div class="metric route-summary__eta"><dt class="mono-label">ETA · UTC</dt><dd class="metric__value" data-role="arrival"></dd></div>
+          <button class="route-summary__back" type="button" data-action="back">Go Back</button>
           <div class="route-summary__playback">
             <label class="playback-speed" data-role="playback-speed" hidden>
             <select data-action="speed" aria-label="Voyage preview speed">
@@ -106,6 +114,7 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
     waveNote.textContent = status === 'loading' ? 'Preparing wave display…' : status === 'error' ? 'Wave display unavailable' :
       status === 'unavailable' ? 'Forecast unavailable' : held ? `Forecast · ${formatEta(validAt)} · held` : 'Significant wave height';
     waveScale.dataset.available = String(status === 'ready');
+    element.querySelector('[data-role="summary-wave-scale"]').dataset.available = String(status === 'ready');
   }
   function updatePlayback({ playing, hour = 0, duration = 0, speed = 1 }) {
     const button = element.querySelector('[data-action="preview"]');
@@ -137,6 +146,13 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
       panel.hidden = !expanded;
     }
     if (action === 'preview') flat?.togglePlayback();
+    if (action === 'toggle-summary') {
+      const panel = element.querySelector('.route-summary');
+      const show = element.querySelector('.route-summary__show');
+      panel.hidden = !panel.hidden;
+      show.hidden = !panel.hidden;
+      (panel.hidden ? show : element.querySelector('.route-summary__hide')).focus();
+    }
   });
   function render(route) {
     const report = getReport();

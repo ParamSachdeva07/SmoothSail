@@ -24,7 +24,6 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
           <label class="field__label" for="field-departure">${icon('calendar')}<span>Departure · UTC</span></label>
           <input class="field__input" id="field-departure" type="date" value="${shipment.departure}" min="${shipment.departure}">
         </div>
-        <p class="field__note mono-label">Generic container vessel · Fastest, cheapest and lowest CO₂ · Today means depart now</p>
         <details class="cargo-options">
           <summary class="mono-label">Cargo & compliance · optional</summary>
           <label class="field__label" for="cargo-text">Cargo list or manifest text</label>
@@ -101,7 +100,7 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
     try {
       await loadPorts();
       for (const key of ['origin', 'destination']) inputs[key].value = labelFor(shipment[`${key}Id`]);
-      element.querySelector('.panel-foot').textContent = `${PORTS.length} supported ports · Indicative routing · No freight quote`;
+      element.querySelector('.panel-foot').textContent = '';
       if (active) showStatus('');
       setBusy(false);
       return true;

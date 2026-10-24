@@ -23,7 +23,7 @@ export function createCompareScreen({ onBack, onViewRoute, onSelectRoute }) {
         <div class="card__actions">
           <button class="button button--quiet" type="button" data-action="info" disabled title="Route information is coming soon">${icon('info')}<span>Info</span></button>
           <button class="button button--quiet" type="button" data-action="view">${icon('ship')}<span>View route</span></button>
-          <button class="button button--primary" type="button" data-action="select">${icon('arrow-right')}<span>Select this route</span></button>
+          <button class="button button--primary" type="button" data-action="select"><span>Select this route</span></button>
         </div>
       </article>`;
   }

@@ -313,6 +313,20 @@ body {
   border-color: var(--hairline);
 }
 
+.button--primary {
+  min-width: 98px;
+  height: 36px;
+  padding: 0 16px;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: #123DFF;
+  color: #fff;
+  font: 500 14px / 1 var(--font-ui);
+}
+.button--primary:hover { background: #0B32D8; opacity: 1; }
+.button--primary:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+
 .panel-foot {
   margin: auto 0 0;
 }
@@ -753,11 +767,12 @@ body {
 
 /* Compact route summary replaces the full-width voyage footer. */
 .route-summary {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 18px;
-  width: min(440px, calc(100vw - 2 * var(--gutter)));
+  gap: 14px;
+  width: min(364px, calc(100vw - 2 * var(--gutter)));
   align-self: flex-start;
 }
 
@@ -778,13 +793,13 @@ body {
 }
 
 .route-summary .metric__value {
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.25;
 }
 
 .route-summary .metric dt {
   color: #555;
-  font-size: 14px;
+  font-size: 12px;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -795,8 +810,8 @@ body {
   justify-content: space-between;
   grid-column: 1 / -1;
   width: 100%;
-  min-height: 48px;
-  gap: 12px;
+  min-height: 36px;
+  gap: 10px;
 }
 
 .route-summary__eta .metric__value {
@@ -834,20 +849,20 @@ body {
   outline-offset: var(--focus-offset);
 }
 
-.route-summary__preview {
-  min-width: 112px;
-  height: 42px;
+.route-summary__back, .route-summary__preview {
+  min-width: 98px;
+  height: 36px;
   padding: 0 18px;
   border: 0;
   border-radius: 999px;
   background: #123DFF;
   color: #fff;
-  font: 500 16px / 1 var(--font-ui);
+  font: 500 14px / 1 var(--font-ui);
   cursor: pointer;
 }
 
-.route-summary__preview:hover { background: #0B32D8; }
-.route-summary__preview:focus-visible {
+.route-summary__back:hover, .route-summary__preview:hover { background: #0B32D8; }
+.route-summary__back:focus-visible, .route-summary__preview:focus-visible {
   outline: var(--border-width) solid var(--text);
   outline-offset: var(--focus-offset);
 }
@@ -953,7 +968,7 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 @media (max-width: 760px) {
   .search .panel-column { background: var(--bg); padding-right: var(--space-3); }
   .detail__layout { gap: var(--space-3); }
-  .route-summary { width: min(440px, calc(100vw - 2 * var(--gutter))); padding: 18px; }
+  .route-summary { width: min(364px, calc(100vw - 2 * var(--gutter))); padding: 18px; }
   .compliance-progress { top: calc(var(--gutter) + 58px); padding: 18px; width: min(300px, calc(100vw - 2 * var(--gutter))); }
 }
 
@@ -991,3 +1006,17 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 @media (max-width: 760px) {
   .wave-scale__labels { font-size: var(--font-size-11); }
 }
+
+/* Detail-panel polish integrated without replacing live voyage controls. */
+.route-summary { padding-top: 38px; }
+.route-summary__hide { position: absolute; top: 12px; right: 18px; padding: 0; border: 0; border-bottom: 1px solid #111; background: none; color: #111; font: 12px/1.3 var(--font-ui); cursor: pointer; }
+.route-summary__show { align-self: flex-start; min-width: 98px; height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: #123DFF; color: #fff; font: 500 14px/1 var(--font-ui); cursor: pointer; }
+.route-summary__show:hover { background: #0B32D8; }
+.route-summary__hide:focus-visible, .route-summary__show:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+.route-summary__wave { min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 5px; }
+.route-summary__wave-title { display: flex; align-items: center; gap: 7px; margin-bottom: 2px; font: 13px/1.25 var(--font-ui); white-space: nowrap; }
+.route-summary__wave-swatch { width: 11px; height: 11px; background: var(--accent-primary); }
+.route-summary .wave-scale__ramp { height: 6px; margin: 0; }
+.route-summary .wave-scale__labels { display: flex; justify-content: space-between; color: #222; font: 10px/1.2 var(--font-mono); }
+.route-summary__wave[data-available="false"] .wave-scale__ramp { opacity: .15; }
+@media (max-width: 760px) { .route-summary { padding-top: 38px; } }
