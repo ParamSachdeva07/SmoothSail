@@ -6,6 +6,43 @@ const env = { ALLOWED_ORIGINS: '*' };
 const request = (path, init = {}) => new Request(`https://tideline.example${path}`, init);
 const unavailable = () => { throw new Error('should not reach the container'); };
 
+test('congestion has the same public JSON/CORS contract as routes', async () => {
+  const preflight = await handleRequest(request('/api/port-congestion', { method: 'OPTIONS', headers: {
+    Origin: 'https://frontend.example', 'Access-Control-Request-Method': 'POST',
+    'Access-Control-Request-Headers': 'content-type'
+  } }), env, unavailable);
+  assert.equal(preflight.status, 204);
+  const response = await handleRequest(request('/port-congestion', { method: 'POST',
+    body: JSON.stringify({ portIds: ['NLRTM'] }), headers: { 'Content-Type': 'application/json' }
+  }), env, async forwarded => {
+    assert.equal(new URL(forwarded.url).pathname, '/port-congestion');
+    return Response.json({ assessments: [] });
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Access-Control-Allow-Origin'), '*');
+});
+
+test('research has no gateway deadline but still forwards caller cancellation', async t => {
+  const deadlines = [];
+  t.mock.method(AbortSignal, 'timeout', ms => {
+    deadlines.push(ms);
+    return new AbortController().signal;
+  });
+  const controller = new AbortController();
+  await handleRequest(request('/api/port-congestion', { method: 'POST',
+    body: '{"portIds":["NLRTM"]}', headers: { 'Content-Type': 'application/json' },
+    signal: controller.signal
+  }), env, async forwarded => {
+    assert.deepEqual(deadlines, []);
+    assert.equal(forwarded.signal.aborted, false);
+    controller.abort();
+    assert.equal(forwarded.signal.aborted, true);
+    return Response.json({ assessments: [] });
+  });
+  await handleRequest(request('/health'), env, async () => Response.json({ ok: true }));
+  assert.deepEqual(deadlines, [180000]);
+});
+
 test('JSON preflights work from unrelated origins without starting a container', async () => {
   for (const origin of ['http://localhost:3000', 'https://frontend.example', 'https://preview.example']) {
     const r = await handleRequest(request('/api/routes', { method: 'OPTIONS', headers: {
@@ -44,11 +81,31 @@ test('query parameters and backend validation statuses are retained', async () =
 });
 
 test('private and unknown paths stay inaccessible, including API aliases', async () => {
-  for (const path of ['/internal/refresh', '/api/internal/refresh', '/admin', '/api/api/internal/refresh']) {
+  for (const path of ['/internal/refresh', '/api/internal/refresh', '/internal/refresh-compliance', '/api/internal/refresh-compliance', '/admin', '/api/api/internal/refresh']) {
     const r = await handleRequest(request(path, { method: 'POST' }), env, unavailable);
     assert.equal(r.status, 404);
     assert.equal(r.headers.get('Access-Control-Allow-Origin'), '*');
   }
+});
+
+test('analysis NDJSON streams unchanged with CORS and uploads retain their multipart boundary', async () => {
+  const body = '{"routeRequest":{"origin":"NLRTM","destination":"SGSIN"},"cargoText":"cargo"}';
+  const stream = new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('{"type":"started"}\n')); c.close(); } });
+  const r = await handleRequest(request('/voyages/analyse', { method: 'POST', body, headers: { 'Content-Type': 'application/json' } }),
+    env, async forwarded => {
+      assert.equal(await forwarded.text(), body);
+      return new Response(stream, { headers: { 'Content-Type': 'application/x-ndjson' } });
+    });
+  assert.match(r.headers.get('Content-Type'), /ndjson/);
+  assert.equal(await r.text(), '{"type":"started"}\n');
+  assert.equal(r.headers.get('Access-Control-Allow-Origin'), '*');
+  const form = new FormData(); form.append('file', new Blob(['Cargo']), 'cargo.txt');
+  const upload = await handleRequest(request('/documents/extract', { method: 'POST', body: form }), env, async forwarded => {
+    assert.match(forwarded.headers.get('Content-Type'), /multipart\/form-data; boundary=/);
+    assert.match(await forwarded.text(), /Cargo/);
+    return Response.json({ stored: false });
+  });
+  assert.equal(upload.status, 200);
 });
 
 test('CORS also wraps method errors and container failures', async () => {

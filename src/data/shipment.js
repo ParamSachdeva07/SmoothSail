@@ -3,7 +3,8 @@
 export const shipment = {
   originId: 'NLRTM',
   destinationId: 'SGSIN',
-  departure: new Date().toISOString().slice(0, 10)
+  departure: new Date().toISOString().slice(0, 10),
+  cargoText: '', documentReferences: [], imoNumber: ''
 };
 
 export function toRouteRequest(state = shipment, now = new Date()) {
@@ -19,8 +20,25 @@ export function toRouteRequest(state = shipment, now = new Date()) {
   return {
     origin: state.originId,
     destination: state.destinationId,
+    ...(state.imoNumber ? { complianceContext: { vessel: { imoNumber: state.imoNumber } } } : {}),
     // Today means depart now; future dates use midnight UTC.
     ...(day === today ? {} : { departureTime: date.toISOString() })
+  };
+}
+
+export function reroutedShipment(report, { portId, alternativePort }, ports, now = new Date()) {
+  const origin = report?.metadata?.ports?.origin?.locode ?? report?.origin;
+  const destination = report?.metadata?.ports?.destination?.locode ?? report?.destination;
+  const replacement = ports.find(port => port.id === alternativePort?.portId);
+  if (!replacement) throw new Error('This alternative is unavailable in the supported port catalogue.');
+  if (![origin, destination].includes(portId)) throw new Error('This issue does not belong to the current journey.');
+  if ([origin, destination].includes(replacement.id)) throw new Error('The alternative must be different from both voyage ports.');
+  const today = now.toISOString().slice(0, 10);
+  const departure = report?.departureTime?.slice(0, 10) || shipment.departure;
+  return {
+    originId: portId === origin ? replacement.id : origin,
+    destinationId: portId === destination ? replacement.id : destination,
+    departure: departure < today ? today : departure
   };
 }
 

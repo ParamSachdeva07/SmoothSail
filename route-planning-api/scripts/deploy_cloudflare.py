@@ -43,6 +43,8 @@ def main():
         'COPERNICUS_PASSWORD': settings.copernicus_password.get_secret_value(),
         'TIDELINE_INTERNAL_TOKEN': token,
     }
+    if settings.gemini_api_key.get_secret_value():
+        values['GEMINI_API_KEY'] = settings.gemini_api_key.get_secret_value()
     subprocess.run(command + ['secret', 'bulk'], cwd=directory, env=env,
                    input=json.dumps(values), text=True, check=True)
     subprocess.run(command + ['deploy'], cwd=directory, env=env, check=True)

@@ -14,6 +14,12 @@ export class TidelineContainer extends Container {
     TIDELINE_INTERNAL_TOKEN: this.env.TIDELINE_INTERNAL_TOKEN || '',
     AUTO_REFRESH_FORECASTS: 'false',
     ROUTE_TIMEOUT_SECONDS: '90',
+    GEMINI_API_KEY: this.env.GEMINI_API_KEY || '',
+    GEMINI_MODEL: 'gemini-4-argon',
+    CONGESTION_CALLS_PER_HOUR: this.env.CONGESTION_CALLS_PER_HOUR || '20',
+    COMPLIANCE_CALLS_PER_HOUR: this.env.COMPLIANCE_CALLS_PER_HOUR || '60',
+    COMPLIANCE_CONCURRENCY: this.env.COMPLIANCE_CONCURRENCY || '6',
+    COMPLIANCE_MAX_CONTEXT_BYTES: this.env.COMPLIANCE_MAX_CONTEXT_BYTES || '3000000',
   };
 }
 
@@ -22,12 +28,18 @@ export default {
     return handleRequest(request, env, forwarded => getContainer(env.ROUTER, 'routing').fetch(forwarded));
   },
   async scheduled(_event, env) {
-    const response = await getContainer(env.ROUTER, 'routing').fetch(new Request('http://container/internal/refresh', {
-      method: 'POST',
-      headers: { 'X-Tideline-Internal-Token': env.TIDELINE_INTERNAL_TOKEN },
-      signal: AbortSignal.timeout(14 * 60 * 1000),
+    // Independent refreshes share the cron window; their deadlines do not add together.
+    const results = await Promise.allSettled([
+      ['refresh', 14], ['refresh-compliance', 5]
+    ].map(async ([path, minutes]) => {
+      const response = await getContainer(env.ROUTER, 'routing').fetch(new Request(`http://container/internal/${path}`, {
+        method: 'POST', headers: { 'X-Tideline-Internal-Token': env.TIDELINE_INTERNAL_TOKEN },
+        signal: AbortSignal.timeout(minutes * 60 * 1000)
+      }));
+      await response.body?.cancel();
+      if (!response.ok) throw new Error(`${path} failed (${response.status}).`);
     }));
-    await response.body?.cancel();
-    if (!response.ok) throw new Error(`Forecast refresh failed (${response.status}).`);
+    const failures = results.filter(result => result.status === 'rejected');
+    if (failures.length) throw new AggregateError(failures.map(result => result.reason), 'Scheduled refresh failed.');
   },
 };

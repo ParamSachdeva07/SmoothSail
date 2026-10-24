@@ -4,6 +4,9 @@
 !uv.lock
 !service/
 !service/*.py
+!scripts/
+!scripts/__init__.py
+!scripts/ingest_compliance.py
 !data/
 !data/planning/
 !data/planning/*.json

@@ -8,7 +8,8 @@ dependencies = [
   "pydantic-settings>=2.7,<3", "pymongo>=4.11,<5",
   "networkx>=3.4,<4", "shapely>=2.0,<3", "pyproj>=3.7,<4",
   "xarray>=2025.1", "scipy>=1.15,<2", "h5netcdf>=1.5,<2",
-  "httpx>=0.28,<1", "python-dotenv>=1.0,<2", "pyshp>=2.3,<4"
+  "httpx>=0.28,<1", "python-dotenv>=1.0,<2", "pyshp>=2.3,<4",
+  "pypdf>=6,<7", "defusedxml>=0.7,<1", "python-multipart>=0.0.20,<1"
 ]
 [project.optional-dependencies]
 providers = [

@@ -1,5 +1,7 @@
 # SmoothSail route-planning API
 
+See [COMPLIANCE.md](COMPLIANCE.md) for parallel cargo/voyage screening, Atlas reference ingestion, streaming results and cited follow-up chat.
+
 This directory contains the Python service and Cloudflare gateway. The current Vite/Mapbox frontend lives in the repository root; the previous Next.js prototype is not included. Run every backend command below from `route-planning-api/`. Production datasets are retrieved from the configured Atlas database or imported using the scripts. Git includes the Natural Earth fallback land mask needed to run demo mode and its tests, plus small planning references; large production masks, forecasts and source archives are excluded.
 
 A Python maritime route comparison API and MongoDB for reference data and environmental snapshots. Enter two ports and receive **fastest, cheapest and lowest-CO₂ options in one response**. User inputs and calculated voyages are not persisted.
@@ -21,6 +23,53 @@ This README describes the implemented service, including what each source actual
 - [Evidence for an AI agent](#evidence-for-an-ai-agent)
 - [Code map](#code-map)
 - [Verification](#verification)
+
+## Port congestion search
+
+`POST /port-congestion` is independent of `/routes`; it never changes route ETA, cost, compliance or geometry. Required input:
+
+```json
+{"portIds": ["NLRTM", "SGSIN"]}
+```
+
+At most two distinct UN/LOCODEs are accepted. Optional `knownData` can contain up to four public facts per requested port:
+
+```json
+{
+  "portIds": ["NLRTM"],
+  "knownData": {
+    "NLRTM": [{
+      "statement": "A dated operational observation, supplied by your integration.",
+      "source": {
+        "title": "Operational update",
+        "url": "https://example.org/operations",
+        "observedAt": "2026-10-24T12:00:00Z",
+        "scope": "port"
+      }
+    }]
+  }
+}
+```
+
+This is a schema example, not a real port observation. Send only public operational facts. Credentials, cargo/customer details and private documents are not needed. Input facts and web pages are explicitly treated as data rather than instructions. In Mongo mode, the backend resolves the supported port and includes up to seven existing PortWatch observations (`containerPortCalls`, `allPortCalls`, date). It does not download PortWatch on demand or treat activity counts as measured queues.
+
+**Research:** one HTTPS request to the Gemini Interactions API, model `gemini-4-argon`, Google Search tool, `low` thinking (Argon's lowest supported setting), 4,096-token output cap, JSON schema. The short prompt requests one search pass, at most one focused query per port, one supporting source and summaries of at most 35 words. It requests no follow-up searches or separate alternative-port investigation. The nearest supported alternative is supplied from the port catalogue. These are model instructions, not a provider-enforced search-call limit; the provider may run more than one search internally. The token cap is a ceiling including thinking, not a target response length. Qualitative, dated operational reporting can support `reported` congestion; numerical observations can support `measured`. The model must use `unknown` for missing, conflicting or inconclusive evidence. There is no fabricated numerical congestion score.
+
+**Validation:** a non-unknown conclusion needs source URLs present in the provider's citation annotations, observation dates within 72 hours and no future dates. If any claimed source is stale or uncited, the assessment becomes unknown. This checks provenance/freshness, not independent factual truth; extraction quality still depends on the source and model. For mild/high, Atlas `$geoNear` on supported port approach points supplies the closest alternative, excluding both requested endpoints. Demo mode ranks its supported catalogue locally. The backend attaches this canonical port rather than trusting a model-generated identity or congestion claim. `alternativePort` includes `distanceNm`, `selectionBasis: nearest_supported_port` and `congestionLevel: unknown`; a source is optional because this is a catalogue proximity suggestion. Distance is straight-line between approach points, not sailing distance. Carrier, cargo, terminal suitability and congestion at that alternative remain unassessed. Only the user's **Reroute** click replaces the affected endpoint and starts a new calculation.
+
+The response contains `assessments[]`, each with `portId`, `portName`, `level` (`low/mild/high/unknown`), `basis`, `confidence` (qualitative), `summary`, `evidenceAsOf`, dated `sources`, nullable `alternativePort`, `checkedAt`, `refreshAfter`, `researchStatus`, `qualityNotes`, `cached`, `methodVersion` and `display`. `display` gates the frontend's blue **1 issue** pill for mild/high only. Clicking the pill opens a collapsed issue list, with yellow/red severity shown beside the row; expanding the row reveals details and source citations. Google search suggestions remain response metadata but are not rendered as widgets in the popup. Missing data is never a low-congestion claim. The assessment describes current conditions, not conditions at a future voyage arrival.
+
+**Latency and storage:** research starts with route submission and has no application-imposed elapsed-time cutoff in the service, browser or Worker gateway. The provider HTTP client has no response-read deadline; connection, write and pool operations retain 30-second network timeouts. Provider/hosting limits and disconnections can still interrupt a request. Route calculations keep their separate timeouts and return without waiting for research. Evidence freshness and cache expiry are evaluated when research completes. Cached assessments return without a provider call. Provider/network failures return unknown, with no alert. Two identical concurrent port-pair requests share one in-flight task; at most two distinct requests run concurrently. Shutdown cancels outstanding tasks. The in-memory cache holds up to 128 assessments. In Atlas, `port_congestion_cache` stores the assessment and source metadata under a hash of port ID, voyage port pair, model, method version and supplied facts. Frontend caching also uses the complete port pair so an alternative from another journey is never reused blindly. Its `expiresAt` TTL index removes expired entries; application code also checks `refreshAfter` because TTL deletion is asynchronous. Supported results last at most 30 minutes, shortened if evidence would become stale. Unknown/error results last 60 seconds. No route or customer record is persisted by this feature.
+
+`CONGESTION_CALLS_PER_HOUR=20` limits paid research calls **per service process**, including failed attempts; the limit resets on process restart and is not a global billing cap across replicas. Use the provider's spending controls for a hard account-level budget. Setting it to `0` disables research while allowing existing cached assessments. Model output and Google Search may incur usage charges.
+
+Set `GEMINI_API_KEY` in the backend `.env`, never in a `VITE_` variable. Restart the API after adding it. The current local preview can also launch with `--env-file /Users/paramsachdeva/Documents/ChatGPT/SmoothSail/.env`, matching the existing local credentials file. Without a key, the endpoint returns `unknown/not_configured` immediately without touching Mongo or Google. Tests use mocked provider responses; live model quality and latency require credentials.
+
+For a future Cloudflare deployment, save `GEMINI_API_KEY` with `wrangler secret put GEMINI_API_KEY` from `cloudflare/`, then deploy the updated Worker/container. The gateway permits this public endpoint with the same JSON/CORS policy as routes. This code change does not itself deploy or provision a key.
+
+Historical datasets remain context: ADB Port Traffic can supply historical waiting/service baselines; World Bank CPPI supplies annual efficiency comparisons. Neither is treated as current congestion. Canal authority data belongs to canal transit planning; bunker prices belong to the cost model. These sources are not newly ingested by this feature. Fresh structured queue/wait feeds can later bypass research without changing the UI contract.
+
+Implementation: `service/congestion_models.py` (contract), `service/congestion.py` (search, validation and cache), `tests/test_congestion.py` (mocked provider, freshness, failures, budget, endpoint tests). Official API references: [Gemini 4 Argon](https://ai.google.dev/gemini-api/docs/latest-model), [Google Search grounding](https://ai.google.dev/gemini-api/docs/google-search), [structured output](https://ai.google.dev/gemini-api/docs/structured-output).
 
 ## How a request becomes three routes
 

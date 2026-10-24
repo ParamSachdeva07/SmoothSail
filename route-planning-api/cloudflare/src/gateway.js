@@ -1,4 +1,5 @@
-const READ_PATHS = new Set(['/health', '/ports', '/ports/nearby', '/data-status', '/route-schema', '/docs', '/openapi.json']);
+const READ_PATHS = new Set(['/health', '/ports', '/ports/nearby', '/data-status', '/compliance/data-status', '/route-schema', '/docs', '/openapi.json']);
+const POST_PATHS = new Set(['/routes', '/port-congestion', '/voyages/analyse', '/documents/extract', '/compliance/chat']);
 const MAX_BODY_BYTES = 8192;
 
 function error(code, message, status) {
@@ -30,8 +31,8 @@ function cors(response, origin, allowedOrigins) {
   return new Response(response.body, { status: response.status, headers });
 }
 
-async function limitedBody(request) {
-  if (Number(request.headers.get('content-length')) > MAX_BODY_BYTES) return null;
+async function limitedBody(request, limit = MAX_BODY_BYTES) {
+  if (Number(request.headers.get('content-length')) > limit) return null;
   const reader = request.body?.getReader();
   if (!reader) return new Uint8Array();
   const chunks = [];
@@ -40,7 +41,7 @@ async function limitedBody(request) {
     const { value, done } = await reader.read();
     if (done) break;
     length += value.byteLength;
-    if (length > MAX_BODY_BYTES) {
+    if (length > limit) {
       await reader.cancel();
       return null;
     }
@@ -61,7 +62,7 @@ export async function handleRequest(request, env, forward) {
   }
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) url.pathname = url.pathname.slice(4);
-  const method = url.pathname === '/routes' ? 'POST' : READ_PATHS.has(url.pathname) ? 'GET' : null;
+  const method = POST_PATHS.has(url.pathname) ? 'POST' : READ_PATHS.has(url.pathname) ? 'GET' : null;
   if (!method) return finish(error('not_found', 'Use /docs to see the route API.', 404));
   if (request.method === 'OPTIONS') {
     const requested = request.headers.get('Access-Control-Request-Method');
@@ -74,19 +75,24 @@ export async function handleRequest(request, env, forward) {
   if (request.method !== method) return finish(error('method_not_allowed', `Use ${method} for this endpoint.`, 405));
   try {
     let body;
+    const contentType = request.headers.get('content-type') || '';
     if (method === 'POST') {
-      if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
-        return finish(error('unsupported_media_type', 'Send application/json.', 415));
+      const upload = url.pathname === '/documents/extract';
+      if (upload ? !contentType.toLowerCase().startsWith('multipart/form-data;') : contentType.split(';')[0].trim().toLowerCase() !== 'application/json') {
+        return finish(error('unsupported_media_type', upload ? 'Send multipart/form-data.' : 'Send application/json.', 415));
       }
-      body = await limitedBody(request);
-      if (body === null) return finish(error('request_too_large', 'Route input must not exceed 8 KiB.', 413));
+      const limit = upload ? 11 * 1024 * 1024 : url.pathname === '/compliance/chat' ? 16 * 1024 * 1024
+        : url.pathname === '/voyages/analyse' ? 1024 * 1024 : MAX_BODY_BYTES;
+      body = await limitedBody(request, limit);
+      if (body === null) return finish(error('request_too_large', 'Input exceeds this endpoint’s size limit.', 413));
     }
     // The upstream target is a bound container, never a caller-controlled URL.
     // Do not forward cookies, authorization or internal refresh headers.
     const response = await forward(new Request(url, {
       method, body,
-      headers: { Accept: 'application/json', ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
-      signal: AbortSignal.timeout(180000),
+      headers: { Accept: url.pathname === '/voyages/analyse' ? 'application/x-ndjson' : 'application/json', ...(method === 'POST' ? { 'Content-Type': contentType } : {}) },
+      signal: ['/port-congestion', '/voyages/analyse', '/compliance/chat'].includes(url.pathname) ? request.signal
+        : AbortSignal.any([request.signal, AbortSignal.timeout(180000)]),
     }));
     // The Containers SDK can return a plain-text 503 while provisioning.
     // Keep failures parseable by frontends that consume the JSON API.

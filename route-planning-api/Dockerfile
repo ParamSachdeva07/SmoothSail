@@ -7,6 +7,7 @@ ENV PYTHONUNBUFFERED=1 UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1 \
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --extra providers --no-install-project
 COPY service ./service
+COPY scripts/__init__.py scripts/ingest_compliance.py ./scripts/
 COPY data/planning ./data/planning
 COPY data/portwatch_mappings.json ./data/portwatch_mappings.json
 RUN useradd --uid 10001 --create-home app && mkdir -p /app/data/cache && chown -R app:app /app/data

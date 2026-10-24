@@ -2,6 +2,7 @@ import { icon } from '../icons.js';
 import { PORTS, findPort, searchPorts, loadPorts } from '../../data/ports.js';
 import { shipment, toRouteRequest } from '../../data/shipment.js';
 import { escapeHtml } from '../../data/routes.js';
+import { api } from '../../api/client.js';
 
 export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
   const element = document.createElement('section');
@@ -24,6 +25,16 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
           <input class="field__input" id="field-departure" type="date" value="${shipment.departure}" min="${shipment.departure}">
         </div>
         <p class="field__note mono-label">Generic container vessel · Fastest, cheapest and lowest CO₂ · Today means depart now</p>
+        <details class="cargo-options">
+          <summary class="mono-label">Cargo & compliance · optional</summary>
+          <label class="field__label" for="cargo-text">Cargo list or manifest text</label>
+          <textarea id="cargo-text" class="cargo-input" rows="4" maxlength="200000" placeholder="e.g. machinery, cleaning liquids, lithium batteries…"></textarea>
+          <label class="cargo-upload mono-label">Add a document <input type="file" accept=".pdf,.docx,.txt,.csv,.md" data-role="cargo-file"></label>
+          <p class="mono-label" data-role="upload-status" role="status"></p>
+          <label class="field__label" for="vessel-imo">Vessel IMO · optional</label>
+          <input class="field__input" id="vessel-imo" inputmode="numeric" maxlength="7" placeholder="7-digit IMO number">
+          <p class="field__note mono-label">Readable PDF, DOCX or text · 10 MiB max · Session only</p>
+        </details>
         <p class="form-status mono-label" role="status" aria-live="polite"></p>
         <button class="button button--primary" type="submit" disabled>${icon('search')}<span>Search routes</span></button>
         <button class="button button--quiet" type="button" data-action="retry" hidden>Retry loading ports</button>
@@ -40,6 +51,27 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
   let controller = null;
   let interval = null;
   let active = false;
+  let entryRevision = 0;
+  let extracting = false;
+  const cargo = element.querySelector('#cargo-text');
+  const imo = element.querySelector('#vessel-imo');
+  const fileInput = element.querySelector('[data-role="cargo-file"]');
+  cargo.value = shipment.cargoText;
+  cargo.addEventListener('input', () => { shipment.cargoText = cargo.value; shipment.documentReferences = []; });
+  imo.addEventListener('input', () => { shipment.imoNumber = imo.value.trim(); });
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0]; if (!file) return;
+    const uploadStatus = element.querySelector('[data-role="upload-status"]');
+    extracting = true; submit.disabled = true; fileInput.disabled = true;
+    uploadStatus.textContent = 'Reading document…';
+    try {
+      const result = await api.extractDocument(file);
+      shipment.cargoText = cargo.value = result.text;
+      shipment.documentReferences = result.references;
+      uploadStatus.textContent = `${file.name} · ${result.references.length} source sections ready`;
+    } catch (error) { uploadStatus.textContent = error.message; }
+    finally { extracting = false; fileInput.disabled = false; submit.disabled = !PORTS.length || Boolean(controller); }
+  });
 
   function showStatus(message, error = false) {
     status.textContent = message;
@@ -53,6 +85,7 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
     form.setAttribute('aria-busy', String(busy));
     for (const [key, input] of Object.entries(inputs)) input.disabled = busy || (key !== 'departure' && !PORTS.length);
     submit.disabled = busy || !PORTS.length;
+    cargo.disabled = busy || extracting; imo.disabled = busy; fileInput.disabled = busy || extracting;
     submit.querySelector('span').textContent = busy ? 'Calculating routes…' : 'Search routes';
     element.querySelector('[data-action="back"] span').textContent = busy ? 'Cancel and go back' : 'Back to globe';
   }
@@ -71,10 +104,12 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
       element.querySelector('.panel-foot').textContent = `${PORTS.length} supported ports · Indicative routing · No freight quote`;
       if (active) showStatus('');
       setBusy(false);
+      return true;
     } catch (error) {
       showStatus(error.message, true);
       retry.hidden = false;
       element.querySelector('.panel-foot').textContent = 'Port catalogue unavailable';
+      return false;
     }
   }
 
@@ -147,7 +182,7 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
   inputs.departure.addEventListener('change', () => { shipment.departure = inputs.departure.value; });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (controller || !PORTS.length) return;
+    if (controller || extracting || !PORTS.length) return;
     let request;
     try {
       for (const key of ['origin', 'destination']) {
@@ -157,6 +192,7 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
         }
       }
       shipment.departure = inputs.departure.value;
+      if (shipment.imoNumber && !/^\d{7}$/.test(shipment.imoNumber)) throw new Error('Enter a 7-digit IMO number or leave it blank.');
       request = toRouteRequest();
     } catch (error) { showStatus(error.message, true); return; }
     const pending = new AbortController();
@@ -179,13 +215,17 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
 
   return {
     element, showGlobe: true,
-    enter() {
+    enter({ autoSubmit = false } = {}) {
       active = true;
+      const revision = ++entryRevision;
       showStatus('');
       inputs.departure.min = new Date().toISOString().slice(0, 10);
-      preparePorts();
+      inputs.departure.value = shipment.departure;
+      preparePorts().then(ready => {
+        if (ready && active && revision === entryRevision && autoSubmit) form.requestSubmit();
+      });
       getGlobe()?.flyToRegion([62, 26], 1.1);
     },
-    leave() { active = false; cancel(); }
+    leave() { active = false; entryRevision++; cancel(); }
   };
 }

@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Literal
+from urllib.parse import quote
 
 from pydantic import Field, SecretStr
-from urllib.parse import quote
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     tideline_internal_token: SecretStr = SecretStr('')
     route_timeout_seconds: int = Field(default=45, ge=5, le=180)
     max_candidates: int = Field(default=8, ge=3, le=20)
+    gemini_api_key: SecretStr = SecretStr('')
+    gemini_model: str = 'gemini-4-argon'
+    congestion_calls_per_hour: int = Field(default=20, ge=0, le=1000)
+    compliance_calls_per_hour: int = Field(default=60, ge=0, le=10000)
+    compliance_concurrency: int = Field(default=6, ge=1, le=12)
+    compliance_max_analyses: int = Field(default=2, ge=1, le=10)
+    compliance_max_context_bytes: int = Field(default=3000000, ge=10000, le=16000000)
 
     def connection_uri(self):
         return self.mongodb_uri.replace('<db_password>', quote(self.mongodb_password.get_secret_value(), safe=''))

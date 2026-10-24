@@ -1,14 +1,22 @@
+import asyncio
+import json
+import secrets
 from contextlib import asynccontextmanager
 from threading import Event, Thread
-import secrets
 
-from fastapi import FastAPI, Query, Request, Response
-from fastapi.responses import JSONResponse
-from starlette.middleware.gzip import GZipMiddleware
+from fastapi import FastAPI, Query, Request, Response, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
 from pymongo.errors import PyMongoError
+from pypdf.errors import PyPdfError
+from starlette.middleware.gzip import GZipMiddleware
 
+from service.compliance import ComplianceService
+from service.compliance_models import ChatRequest, ChatResponse, VoyageAnalysisRequest
 from service.config import settings
+from service.congestion import CongestionService
+from service.congestion_models import CongestionRequest, CongestionResponse
 from service.data import Repository
+from service.documents import MAX_UPLOAD, extract_document
 from service.models import RouteError, RouteRequest, RouteResponse
 from service.routing import calculate
 
@@ -16,11 +24,14 @@ from service.routing import calculate
 @asynccontextmanager
 async def lifespan(app):
     app.state.repository = Repository(settings)
+    app.state.congestion = CongestionService(app.state.repository, settings)
+    app.state.compliance = ComplianceService(app.state.repository, settings, app.state.congestion)
     stop = Event()
     def refresh_loop():
-        from service.providers import refresh_overviews
-        from service.data import connect
         import logging
+
+        from service.data import connect
+        from service.providers import refresh_overviews
         while not stop.is_set():
             client = None
             try:
@@ -36,6 +47,7 @@ async def lifespan(app):
         Thread(target=refresh_loop, daemon=True, name='forecast-refresh').start()
     yield
     stop.set()
+    await app.state.congestion.close()
     if app.state.repository.client:
         app.state.repository.client.close()
 
@@ -51,6 +63,42 @@ def route_schema():
     return RouteResponse.model_json_schema(by_alias=True)
 
 
+@app.post('/port-congestion', response_model=CongestionResponse)
+async def port_congestion(body: CongestionRequest, request: Request):
+    return await request.app.state.congestion.assess(body)
+
+
+@app.post('/documents/extract')
+async def documents_extract(file: UploadFile):
+    try:
+        content = await file.read(MAX_UPLOAD + 1)
+        return await asyncio.to_thread(extract_document, file.filename or 'document.txt', content)
+    except (ValueError, UnicodeError, PyPdfError):
+        return JSONResponse(status_code=422, content={'error': {'code': 'unreadable_document',
+            'message': 'Use a readable PDF, DOCX or UTF-8 text file up to 10 MiB / 200 pages / 200,000 text characters. Scanned PDFs need OCR text.'}})
+    finally:
+        await file.close()
+
+
+@app.post('/voyages/analyse')
+async def analyse_voyage(body: VoyageAnalysisRequest, request: Request):
+    async def events():
+        async for event in request.app.state.compliance.stream(body):
+            yield json.dumps(event, default=str, separators=(',', ':')) + '\n'
+    return StreamingResponse(events(), media_type='application/x-ndjson',
+        headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
+
+
+@app.post('/compliance/chat', response_model=ChatResponse)
+async def compliance_chat(body: ChatRequest, request: Request):
+    return await request.app.state.compliance.chat(body)
+
+
+@app.get('/compliance/data-status')
+async def compliance_status(request: Request):
+    return await asyncio.to_thread(request.app.state.compliance.store.status)
+
+
 @app.post('/internal/refresh', include_in_schema=False)
 def refresh_sources(request: Request):
     """Private scheduled refresh; the public Worker never forwards this path."""
@@ -58,14 +106,29 @@ def refresh_sources(request: Request):
     supplied = request.headers.get('X-Tideline-Internal-Token', '')
     if not expected or not secrets.compare_digest(supplied.encode(), expected.encode()):
         return JSONResponse(status_code=404, content={'error': {'code': 'not_found', 'message': 'Not found.'}})
-    from service.providers import refresh_overviews
     from service.data import connect
+    from service.providers import refresh_overviews
     client, db = connect(settings)
     try:
         refresh_overviews(settings, db)
     finally:
         client.close()
     return {'status': 'refresh_checked'}
+
+
+@app.post('/internal/refresh-compliance', include_in_schema=False)
+def refresh_compliance(request: Request):
+    expected = settings.tideline_internal_token.get_secret_value()
+    supplied = request.headers.get('X-Tideline-Internal-Token', '')
+    if not expected or not secrets.compare_digest(supplied.encode(), expected.encode()):
+        return JSONResponse(status_code=404, content={'error': {'code': 'not_found', 'message': 'Not found.'}})
+    from scripts.ingest_compliance import refresh_sources, refresh_structured
+    from service.compliance_data import ensure_compliance_indexes
+    db = request.app.state.repository.database()
+    ensure_compliance_indexes(db)
+    async def refresh():
+        return await refresh_sources(db) + await refresh_structured(db)
+    return {'sources': asyncio.run(refresh())}
 
 
 @app.exception_handler(RouteError)

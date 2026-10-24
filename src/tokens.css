@@ -24,6 +24,8 @@
   --hazard-high: #B07857;
   --hazard-severe: #AD6068;
   --hazard-restricted: #8C6477;
+  --congestion-mild: #F3D44B;
+  --congestion-high: #C34848;
 
   /* --- Vessel ----------------------------------------------------------- */
   --vessel: #FF0004;

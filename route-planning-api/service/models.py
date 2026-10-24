@@ -27,6 +27,8 @@ class DeclaredVessel(Model):
     draft_m: float | None = Field(default=None, gt=0)
     air_draft_m: float | None = Field(default=None, gt=0)
     ice_class: str | None = Field(default=None, max_length=80)
+    gross_tonnage: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    build_country_code: CountryCode | None = None
 
 
 class DeclaredParty(Model):
@@ -42,6 +44,10 @@ class DeclaredCargo(Model):
     un_numbers: list[Annotated[str, Field(pattern=r'^UN\d{4}$')]] = Field(default_factory=list, max_length=100)
     origin_country_code: CountryCode | None = None
     destination_country_code: CountryCode | None = None
+    customs_value: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    currency: str | None = Field(default=None, pattern=r'^[A-Z]{3}$')
+    quantity: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    quantity_unit: Literal['containers', 'tonnes', 'items'] | None = None
 
 
 class ComplianceInput(Model):

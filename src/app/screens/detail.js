@@ -3,8 +3,11 @@ import { createFlatMap } from '../../globe/flatmap.js';
 import { getReport, getRoutes, findRoute, reportPort, formatDuration, formatNm, formatUsd, formatNumber } from '../../data/routes.js';
 import { formatEta } from '../../data/shipment.js';
 import { validWaveGrid } from '../../globe/waves.js';
+import { routePlanner } from '../../data/route-planning.js';
+import { COMPLIANCE_CATEGORIES, categoryProgress } from '../../data/compliance.js';
+import { createComplianceChat } from '../compliance-chat.js';
 
-export function createDetailScreen({ getSelectedRouteId, onBack }) {
+export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
   const element = document.createElement('section');
   element.className = 'screen detail';
   element.id = 'screen-detail';
@@ -58,8 +61,45 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
           </div>
         </div>
       </div>
-    </div>`;
+    </div>
+    <details class="compliance-progress" aria-label="Voyage compliance check" open>
+      <summary><span>Voyage compliance check</span><span class="mono-label" data-role="compliance-count" role="status">0 / 6</span></summary>
+      <div class="compliance-progress__body">
+        <dl data-role="compliance-checks"></dl>
+      </div>
+    </details>`;
   let flat = null;
+  let congestionRevision = 0;
+  let unsubscribe = () => {};
+  const chat = createComplianceChat(element);
+  const progress = element.querySelector('.compliance-progress');
+  if (window.matchMedia('(max-width: 760px)').matches) progress.open = false;
+  const learnMore = finding => {
+    const state = routePlanner.getState(getReport());
+    if (state) { progress.open = false; chat.open(finding, state); }
+  };
+  function updateCompliance(state) {
+    const count = Object.keys(state.checks).length;
+    element.querySelector('[data-role="compliance-count"]').textContent = `${count} / ${COMPLIANCE_CATEGORIES.length}`;
+    const checks = element.querySelector('[data-role="compliance-checks"]'); checks.replaceChildren();
+    for (const category of COMPLIANCE_CATEGORIES) {
+      const check = categoryProgress(state, category);
+      const row = document.createElement('div'); row.className = 'compliance-progress__row'; row.dataset.phase = check.phase;
+      row.title = check.description;
+      const name = document.createElement('dt'); name.textContent = check.name;
+      const status = document.createElement('dd'); status.setAttribute('aria-label', check.label);
+      const indicator = document.createElement('span'); indicator.className = 'compliance-progress__indicator'; indicator.setAttribute('aria-hidden', 'true');
+      if (check.phase === 'done') {
+        indicator.innerHTML = icon('check', 12);
+        status.title = 'Research complete. Open the port issues to read findings.';
+        status.append(indicator);
+      } else {
+        status.append(indicator, document.createTextNode(check.label));
+      }
+      row.append(name, status); checks.append(row);
+    }
+    flat?.setComplianceFindings(state.findings);
+  }
   const waveNote = element.querySelector('[data-role="wave-note"]');
   const waveScale = element.querySelector('[data-role="wave-scale"]');
   function updateWaveState({ status, held, validAt }) {
@@ -120,7 +160,23 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
     element.querySelector('[data-overlay="restrictions"]').checked = true;
     element.querySelector('[data-role="wave-scale"]').hidden = waveToggle.disabled;
     flat?.setActive(true);
-    flat?.showRoute(route, { origin, destination, departureTime: report.departureTime, waveGrid: report.waveGrid, overlays: report.overlays });
+    const revision = ++congestionRevision;
+    unsubscribe();
+    // Progress is independent of the map/texture loading lifecycle.
+    const mapReady = flat?.showRoute(route, { origin, destination, departureTime: report.departureTime, waveGrid: report.waveGrid, overlays: report.overlays });
+    let previousCongestion = null;
+    unsubscribe = routePlanner.subscribe(report, state => {
+      if (congestionRevision !== revision) return;
+      updateCompliance(state);
+      if (previousCongestion !== state.congestion) {
+        previousCongestion = state.congestion; flat?.setPortCongestion(state.congestion);
+      }
+    });
+    Promise.resolve(mapReady).then(() => {
+      if (congestionRevision !== revision) return;
+      const state = routePlanner.getState(report);
+      if (state) { updateCompliance(state); flat?.setPortCongestion(state.congestion); }
+    });
   }
   return {
     element, showGlobe: false,
@@ -128,13 +184,13 @@ export function createDetailScreen({ getSelectedRouteId, onBack }) {
       const status = element.querySelector('.map-status');
       if (!flat) {
         status.textContent = 'Loading map…';
-        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onPlaybackState: updatePlayback, onNotices: updateNotices, onWaveState: updateWaveState }); }
+        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onPlaybackState: updatePlayback, onNotices: updateNotices, onWaveState: updateWaveState, onReroute, onLearnMore: learnMore }); }
         catch { status.textContent = 'Map rendering is unavailable in this browser. Route estimates are shown below.'; }
       }
       flat?.resize();
       const route = findRoute(getSelectedRouteId());
       if (route) render(route);
     },
-    leave() { flat?.setActive(false); }
+    leave() { congestionRevision++; unsubscribe(); chat.close(); flat?.setActive(false); }
   };
 }

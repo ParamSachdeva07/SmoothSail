@@ -628,6 +628,48 @@ body {
 .hazard-card p { margin: 8px 0 0; }
 .hazard-card a { display: inline-block; margin-top: 8px; color: var(--hazard-restricted); }
 
+/* Port conditions: a quiet marker expands into the same paper-and-hairline popup language. */
+.map-port-marker { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.port-issue {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 30px;
+  padding: 0 12px; border: 0; border-radius: 999px;
+  background: #123DFF; color: #fff; font: 500 12px / 1 var(--font-ui);
+  white-space: nowrap; cursor: pointer; transition: background var(--transition-speed);
+}
+.port-issue[hidden] { display: none; }
+.congestion-dot { display: inline-block; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--congestion-mild); }
+.congestion-card[data-level="high"] .congestion-dot { background: var(--congestion-high); }
+.port-issue:hover, .port-issue[aria-expanded="true"] { background: #0B32D8; }
+.port-issue:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.congestion-popup { z-index: 3; }
+.congestion-popup .mapboxgl-popup-content { border-radius: 0; box-shadow: none; border: 1px solid var(--hairline); padding: 20px; background: var(--bg); }
+.congestion-popup .mapboxgl-popup-close-button { width: 32px; height: 32px; font-size: 20px; color: var(--text); }
+.congestion-popup .mapboxgl-popup-tip { border-top-color: var(--bg); border-bottom-color: var(--bg); }
+.congestion-card { max-height: min(440px, 55dvh); overflow-y: auto; padding-right: 2px; font: var(--font-size-11) / 1.65 var(--font-mono); color: var(--text); }
+.congestion-card p { margin: 0; }
+.congestion-card__eyebrow { text-transform: uppercase; letter-spacing: var(--tracking-caps); color: #666; font-size: 9px; }
+.congestion-card__title { margin: 3px 16px 14px 0; font: 500 var(--font-size-16) / 1.4 var(--font-ui); }
+.congestion-card__issues { margin: 0; padding: 0; list-style: none; }
+.congestion-card__issue { border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+.congestion-card__level { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 2px; font: 500 var(--font-size-13) / 1.4 var(--font-ui); cursor: pointer; list-style: none; }
+.congestion-card__level::-webkit-details-marker { display: none; }
+.congestion-card__level::after { content: ''; width: 6px; height: 6px; margin: 0 3px 3px 16px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); transition: transform var(--transition-speed); }
+.congestion-card__issue[open] > .congestion-card__level::after { transform: rotate(225deg); margin-bottom: -3px; }
+.congestion-card__level:focus-visible { outline: 2px solid #123DFF; outline-offset: 2px; }
+.congestion-card__details { padding: 0 0 14px; }
+.congestion-card .congestion-card__summary { margin-top: 8px; }
+.congestion-card .congestion-card__meta { margin-top: 8px; color: #666; font-size: 9px; line-height: 1.6; }
+.congestion-card__alternative { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.congestion-card__alternative h4 { margin: 5px 0; font: 500 var(--font-size-13) / 1.5 var(--font-ui); }
+.congestion-card__alternative > p:not(:first-child) { margin-top: 5px; }
+.congestion-card__reroute { margin-top: 12px; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: #123DFF; color: #fff; font: 500 12px / 1 var(--font-ui); cursor: pointer; }
+.congestion-card__reroute:hover { background: #0B32D8; }
+.congestion-card__reroute:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.congestion-card__reroute:disabled { opacity: 0.65; cursor: progress; }
+.congestion-card__sources { margin-top: 14px; }
+.congestion-card__source { display: block; margin-top: 4px; color: var(--text); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.congestion-card__source:focus-visible, .congestion-popup .mapboxgl-popup-close-button:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; }
+
 /* Overlay control is a left-side blue pill that expands into its settings. */
 .controls {
   display: flex;
@@ -716,11 +758,14 @@ body {
   align-items: start;
   gap: 18px;
   width: min(440px, calc(100vw - 2 * var(--gutter)));
+  align-self: flex-start;
+}
+
+.route-summary, .compliance-progress {
   padding: 22px;
   border: 0;
   border-radius: 28px;
   background: #D9D9D9;
-  align-self: flex-start;
 }
 
 .route-summary__metrics {
@@ -867,10 +912,49 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 .map-status { color: var(--text); max-width: var(--status-width-max); }
 .map-status:empty { display: none; }
 .panel-column { max-width: calc(100vw - 2 * var(--gutter)); overflow-y: auto; padding-bottom: var(--space-2); }
+.cargo-options { border-top: 1px solid var(--hairline, #d9dddf); padding-top: 12px; }
+.cargo-options > summary { cursor: pointer; margin-bottom: 12px; }
+.cargo-options .field__label { margin: 14px 0 6px; }
+.cargo-input { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #d9dddf; background: transparent; color: var(--text); font: 14px/1.5 var(--font-ui); resize: vertical; }
+.cargo-upload { display: block; margin-top: 10px; }
+.cargo-upload input { display: block; max-width: 100%; margin-top: 8px; font-size: 12px; }
+.compliance-progress { position: absolute; z-index: 2; top: calc(var(--gutter) + 66px); right: var(--gutter); width: min(320px, calc(100vw - 2 * var(--gutter))); box-sizing: border-box; pointer-events: auto; font: var(--font-size-13)/1.5 var(--font-ui); }
+.compliance-progress > summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; list-style: none; font-size: var(--font-size-16); }
+.compliance-progress > summary::-webkit-details-marker { display: none; }
+.compliance-progress > summary::after { content: ''; flex: 0 0 auto; width: 6px; height: 6px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); margin-bottom: 4px; }
+.compliance-progress[open] > summary::after { transform: rotate(225deg); margin-bottom: -3px; }
+.compliance-progress > summary [role="status"] { margin-left: auto; color: var(--text); }
+.compliance-progress > summary:focus-visible { outline: 2px solid #123dff; outline-offset: 5px; }
+.compliance-progress__body { padding-top: 12px; }
+.compliance-progress dl { margin: 0; max-height: 42dvh; overflow-y: auto; }
+.compliance-progress__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid #00000012; }
+.compliance-progress__row dt { flex: 1; }
+.compliance-progress__row dd { display: flex; align-items: center; gap: 6px; margin: 0; font: 10px/1.4 var(--font-mono); white-space: nowrap; color: #56616a; }
+.compliance-progress__indicator { display: inline-grid; place-items: center; flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: #86929a; }
+.compliance-progress__row[data-phase="researching"] dd { color: #123dff; }
+.compliance-progress__row[data-phase="researching"] .compliance-progress__indicator { width: 12px; height: 12px; border: 1.5px solid #123dff35; border-top-color: #123dff; background: transparent; animation: compliance-spin .8s linear infinite; }
+.compliance-progress__row[data-phase="done"] .compliance-progress__indicator { width: 18px; height: 18px; background: #27804b; color: #fff; }
+.compliance-progress__indicator .icon { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@keyframes compliance-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .compliance-progress__indicator { animation: none !important; } }
+.congestion-card__issue[data-level="high"] .congestion-dot { background: #d34b4b; }
+.congestion-card__issue[data-level="mild"] .congestion-dot { background: #c79638; }
+.congestion-card__issue[data-level="info"] .congestion-dot { background: #86929a; }
+.compliance-chat { position: absolute; z-index: 8; pointer-events: auto; right: var(--gutter); bottom: var(--gutter); width: min(350px, calc(100vw - 2 * var(--gutter))); box-sizing: border-box; padding: 18px; background: var(--bg, #fff); border: 1px solid #d9dddf; box-shadow: 0 12px 40px #172c4018; font: 14px/1.5 var(--font-ui); }
+.compliance-chat header { display: flex; justify-content: space-between; align-items: center; font-weight: 500; }
+.compliance-chat header button { border: 0; background: transparent; color: var(--text); font-size: 24px; cursor: pointer; }
+.compliance-chat__messages { max-height: min(34vh, 300px); overflow: auto; overflow-wrap: anywhere; }
+.compliance-chat__user { border-left: 2px solid #123dff; padding-left: 10px; }
+.compliance-chat__assistant { white-space: pre-wrap; }
+.compliance-chat form { display: flex; gap: 8px; margin-top: 12px; }
+.compliance-chat input { width: 0; min-width: 0; flex: 1; border: 1px solid #d9dddf; background: transparent; padding: 8px; color: var(--text); font: inherit; }
+.compliance-chat [type="submit"] { border: 0; border-radius: 999px; padding: 0 16px; background: #123dff; color: #fff; font: inherit; cursor: pointer; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 @media (max-width: 760px) {
   .search .panel-column { background: var(--bg); padding-right: var(--space-3); }
   .detail__layout { gap: var(--space-3); }
   .route-summary { width: min(440px, calc(100vw - 2 * var(--gutter))); padding: 18px; }
+  .compliance-progress { top: calc(var(--gutter) + 58px); padding: 18px; width: min(300px, calc(100vw - 2 * var(--gutter))); }
 }
 
 .detail__head > .button {

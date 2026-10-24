@@ -6,6 +6,10 @@ import { createWaveOverlay } from './wave-overlay.js';
 import { createVoyagePlayer } from './voyage-player.js';
 import { createHazardOverlay } from './hazard-overlay.js';
 import { createSmoothZoom } from './smooth-zoom.js';
+import { forecastMapBounds, minimumCoverageZoom, WORLD_BOUNDS } from './map-coverage.js';
+import { createPortMarker } from './port-congestion.js';
+import { createPortIssuesCard } from './port-issues.js';
+import { findingsForPort } from '../data/compliance.js';
 
 const empty = () => ({ type: 'FeatureCollection', features: [] });
 const collection = (features) => ({ type: 'FeatureCollection', features });
@@ -16,18 +20,19 @@ function portLabel(port) {
   return `${port.name}${code ? ` (${shortCode ? `${shortCode[1]} ${shortCode[2]}` : code})` : ''}`;
 }
 
-export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = () => {}, onPlaybackState = () => {}, onNotices = () => {}, onWaveState = () => {} }) {
+export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = () => {}, onPlaybackState = () => {}, onNotices = () => {}, onWaveState = () => {}, onReroute, onLearnMore }) {
   const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN?.trim();
   if (!token) { onStatus('Add a Mapbox public token to display the map.'); return null; }
   mapboxgl.accessToken = token;
   const background = cssToken('--bg', '#FAFAFA');
+  let coverageBounds = WORLD_BOUNDS;
   const map = new mapboxgl.Map({
     container,
     style: 'mapbox://styles/mapbox/light-v11',
     // Keep the map and forecast canvas in the same projection so coastal
     // samples and vector hazard contours remain geographically aligned.
     projection: 'mercator', center: [55, 24], zoom: 1.1, minZoom: 0, maxZoom: 8,
-    maxBounds: [[-180, -85.051129], [180, 85.051129]],
+    maxBounds: coverageBounds,
     pitch: 0, bearing: 0, attributionControl: true, renderWorldCopies: false, fadeDuration: 0
   });
   map.dragRotate.disable();
@@ -103,34 +108,75 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
   }));
   let latestRoute = null;
   let revision = 0;
-  let refitAtMinimum = false;
   const markers = [];
+  const portMarkers = new Map();
+  const portIssues = new Map();
+  const portAssessments = new Map();
+  let congestionPopup = null, openPort = null;
+  function closeCongestion() { congestionPopup?.remove(); congestionPopup = null; }
+  function refreshOpenPopup() {
+    if (!congestionPopup || !openPort) return;
+    const previous = congestionPopup.getElement().querySelector('.congestion-card');
+    if (!previous) return;
+    const next = createPortIssuesCard(openPort, portAssessments.get(openPort.code), portIssues.get(openPort.code) ?? [], onReroute, onLearnMore);
+    // Retain existing row nodes so clicks, focus and expanded details survive arrivals.
+    const list = previous.querySelector('.congestion-card__issues');
+    const rows = new Map([...list.children].map(row => [row.querySelector('details')?.dataset.issueId, row]));
+    const wanted = [...next.querySelector('.congestion-card__issues').children];
+    const retained = new Set();
+    wanted.forEach((row, index) => {
+      const id = row.querySelector('details')?.dataset.issueId;
+      const existing = rows.get(id) ?? row;
+      retained.add(id);
+      if (list.children[index] !== existing) list.insertBefore(existing, list.children[index] ?? null);
+    });
+    rows.forEach((row, id) => { if (!retained.has(id)) row.remove(); });
+    previous.dataset.level = next.dataset.level ?? '';
+    previous.querySelector('.congestion-card__eyebrow').textContent = next.querySelector('.congestion-card__eyebrow').textContent;
+  }
+  function showCongestion(port, assessment, button) {
+    const wasOpen = button.getAttribute('aria-expanded') === 'true';
+    closeCongestion();
+    if (wasOpen) return;
+    openPort = port;
+    button.setAttribute('aria-expanded', 'true');
+    congestionPopup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true, focusAfterOpen: true,
+      maxWidth: `${Math.min(320, Math.max(180, container.clientWidth - 32))}px`, className: 'congestion-popup',
+      offset: { top: [0, 10], bottom: [0, -54], left: [0, 0], right: [0, 0],
+        'top-left': [0, 10], 'top-right': [0, 10], 'bottom-left': [0, -54], 'bottom-right': [0, -54] } })
+      .setLngLat(port.coordinates).setDOMContent(createPortIssuesCard(port, assessment, portIssues.get(port.code) ?? [], onReroute, onLearnMore)).addTo(map);
+    congestionPopup.getElement().setAttribute('role', 'dialog');
+    congestionPopup.getElement().setAttribute('aria-label', `${port.name} voyage issues`);
+    congestionPopup.getElement().addEventListener('keydown', event => {
+      if (event.key === 'Escape') { closeCongestion(); button.focus(); }
+    });
+    congestionPopup.on('close', () => { button.setAttribute('aria-expanded', 'false'); openPort = null; });
+  }
   function fit() {
     if (!latestRoute || !container.clientWidth || !container.clientHeight) return;
     zoom.reset();
     const mobile = container.clientWidth < 900;
+    const progressWidth = container.parentElement.querySelector('.compliance-progress')?.offsetWidth ?? 0;
     map.fitBounds(routeBounds(latestRoute.geometry), {
-      padding: { top: 150, right: mobile ? 30 : 240, bottom: Math.max(mobile ? 230 : 190, (container.parentElement.querySelector('.route-summary')?.offsetHeight ?? 130) + 45), left: mobile ? 30 : 65 },
+      padding: { top: 150, right: mobile ? 30 : Math.max(240, progressWidth + 65), bottom: Math.max(mobile ? 230 : 190, (container.parentElement.querySelector('.route-summary')?.offsetHeight ?? 130) + 45), left: mobile ? 30 : 65 },
       retainPadding: false,
       maxZoom: 6, duration: cssDurationMs('--camera-fit-duration', 900)
     });
   }
-  map.on('zoomend', () => {
-    if (map.getZoom() > map.getMinZoom() + 0.05) {
-      refitAtMinimum = false;
-    } else if (latestRoute && !refitAtMinimum) {
-      refitAtMinimum = true;
-      fit();
+  function constrainZoom() {
+    const { clientWidth: width, clientHeight: height } = container;
+    if (!width || !height) return;
+    const minimum = minimumCoverageZoom(coverageBounds, width, height);
+    if (Math.abs(map.getMinZoom() - minimum) > 0.001) {
+      zoom.reset();
+      map.setMinZoom(minimum);
     }
-  });
+  }
   function resize() {
     const { clientWidth: width, clientHeight: height } = container;
     if (!width || !height) return;
     map.resize();
-    // Mercator's world is 512px at zoom zero. Keep it at least as large as
-    // both viewport dimensions; world bounds also prevent panning into blank space.
-    const minimum = Math.max(0, Math.log2(Math.max(width, height) / 512));
-    if (Math.abs(map.getMinZoom() - minimum) > 0.001) map.setMinZoom(minimum);
+    constrainZoom();
   }
   const observer = new ResizeObserver(() => { resize(); if (latestRoute && container.clientWidth) fit(); });
   observer.observe(container);
@@ -138,9 +184,14 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
 
   return {
     resize,
-    destroy: () => { player?.destroy(); waves?.destroy(); hazards?.destroy(); zoom.destroy(); observer.disconnect(); markers.forEach((marker) => marker.remove()); map.remove(); },
+    destroy: () => { closeCongestion(); portMarkers.forEach(marker => marker.destroy()); player?.destroy(); waves?.destroy(); hazards?.destroy(); zoom.destroy(); observer.disconnect(); markers.forEach((marker) => marker.remove()); map.remove(); },
     showRoute(route, { origin, destination, departureTime, waveGrid, overlays }) {
       latestRoute = route;
+      coverageBounds = forecastMapBounds(waveGrid);
+      zoom.reset();
+      map.stop();
+      map.setMaxBounds(coverageBounds);
+      constrainZoom();
       const current = ++revision;
       return ready.then(() => {
         if (revision !== current) return;
@@ -148,11 +199,13 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
         const ports = [{ ...origin, role: 'origin' }, { ...destination, role: 'destination' }];
         map.getSource('ports').setData(collection(ports.map((port) => point(port.coordinates, { role: port.role, name: port.name }))));
         markers.splice(0).forEach((marker) => marker.remove());
-        ports.forEach((port, i) => {
-          const label = document.createElement('span');
-          label.className = 'map-port-label';
-          label.textContent = portLabel(port);
-          markers.push(new mapboxgl.Marker({ element: label, anchor: 'bottom', offset: [0, -10] }).setLngLat(port.coordinates).addTo(map));
+        closeCongestion();
+        portMarkers.forEach(marker => marker.destroy()); portMarkers.clear();
+        portIssues.clear(); portAssessments.clear();
+        ports.forEach((port) => {
+          const marker = createPortMarker(port, portLabel(port), (assessment, button) => showCongestion(port, assessment, button), closeCongestion);
+          portMarkers.set(port.code, marker);
+          markers.push(new mapboxgl.Marker({ element: marker.element, anchor: 'bottom', offset: [0, -10] }).setLngLat(port.coordinates).addTo(map));
         });
         departure = departureTime;
         hazards.setNotices(overlays);
@@ -167,6 +220,23 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
         fit();
       });
     },
+    setPortCongestion(assessments) {
+      portMarkers.forEach((marker, code) => {
+        const assessment = assessments.find(a => a.portId === code);
+        portAssessments.set(code, assessment); marker.update(assessment);
+      });
+      refreshOpenPopup();
+    },
+    setComplianceFindings(findings) {
+      let changed = false;
+      portMarkers.forEach((marker, code) => {
+        const relevant = findingsForPort(findings, latestRoute?.id, code);
+        const previous = portIssues.get(code) ?? [];
+        if (previous.length !== relevant.length || relevant.some((finding, i) => finding !== previous[i])) changed = true;
+        portIssues.set(code, relevant); marker.updateIssues(relevant);
+      });
+      if (changed) refreshOpenPopup();
+    },
     setAlternates(routes) { ready.then(() => map.getSource('alt-routes').setData(collection(routes.map(routeFeature)))); },
     setOverlay(id, visible) {
       if (id === 'waves') ready.then(() => waves.setVisible(visible));
@@ -176,7 +246,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
         if (id === 'hazards') waves.setHazardsVisible(visible);
       });
     },
-    setActive(next) { active = next; player?.setActive(next); waves?.setActive(next && coastReady); },
+    setActive(next) { active = next; if (!next) closeCongestion(); player?.setActive(next); waves?.setActive(next && coastReady); },
     togglePlayback() { player?.toggle(); },
     setPlaybackSpeed(speed) { player?.setSpeed(speed); }
   };

@@ -1,0 +1,85 @@
+"""Small, public-data-only contract for port congestion screening."""
+from typing import Annotated, Literal
+
+from pydantic import AwareDatetime, Field, HttpUrl, model_validator
+
+from service.models import Model
+
+PortId = Annotated[str, Field(pattern=r'^[A-Z]{2}[A-Z0-9]{3}$')]
+Level = Literal['low', 'mild', 'high', 'unknown']
+
+
+class Source(Model):
+    title: str = Field(max_length=160)
+    url: HttpUrl
+    observed_at: AwareDatetime
+    scope: Literal['port', 'terminal'] = 'port'
+
+
+class KnownFact(Model):
+    """Caller-provided public evidence, never trusted as an instruction."""
+    statement: str = Field(min_length=1, max_length=500)
+    source: Source
+
+
+class CongestionRequest(Model):
+    port_ids: list[PortId] = Field(min_length=1, max_length=2)
+    known_data: dict[PortId, list[KnownFact]] = Field(default_factory=dict, max_length=2)
+
+    @model_validator(mode='after')
+    def bounded_input(self):
+        if len(set(self.port_ids)) != len(self.port_ids):
+            raise ValueError('Port identifiers must be distinct.')
+        if set(self.known_data) - set(self.port_ids) or any(len(v) > 4 for v in self.known_data.values()):
+            raise ValueError('Supply at most four facts for each requested port.')
+        return self
+
+
+class Alternative(Model):
+    port_id: PortId
+    name: str = Field(max_length=100)
+    reason: str = Field(max_length=400)
+    congestion_level: Level = 'unknown'
+    source: Source | None = None
+    distance_nm: float | None = Field(default=None, ge=0)
+    selection_basis: Literal['nearest_supported_port'] = 'nearest_supported_port'
+    status: Literal['candidate'] = 'candidate'
+
+
+class Finding(Model):
+    port_id: PortId
+    level: Level
+    basis: Literal['reported', 'measured', 'unknown']
+    confidence: Literal['low', 'medium', 'high']
+    summary: str = Field(max_length=600)
+    evidence_as_of: AwareDatetime | None
+    sources: list[Source] = Field(max_length=3)
+    alternative_port: Alternative | None = None
+
+
+class ResearchOutput(Model):
+    assessments: list[Finding] = Field(max_length=2)
+
+
+class Display(Model):
+    show_badge: bool = False
+    color: Literal['yellow', 'red'] | None = None
+    label: str = 'issue'
+
+
+class Assessment(Finding):
+    port_name: str = ''
+    checked_at: AwareDatetime
+    refresh_after: AwareDatetime
+    method_version: str = 'port-search-v4'
+    research_status: Literal['completed', 'not_configured', 'timeout', 'unavailable', 'busy', 'budget_limited']
+    quality_notes: list[str] = Field(default_factory=list)
+    display: Display = Field(default_factory=Display)
+    cached: bool = False
+    # Provider search metadata; the frontend displays source citations, not suggestion widgets.
+    search_suggestions: list[str] = Field(default_factory=list)
+
+
+class CongestionResponse(Model):
+    assessments: list[Assessment]
+    model: str
