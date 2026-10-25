@@ -1,4 +1,6 @@
+import { formattedText, sourceList } from './issue-content.js';
 import { issueLevel } from '../data/congestion.js';
+import { transportEstimate } from './transport-estimate.js';
 
 function node(tag, className, text) {
   const element = document.createElement(tag);
@@ -38,7 +40,7 @@ export function createCongestionCard(port, assessment, onReroute) {
   level.append(node('span', 'congestion-dot'), document.createTextNode(
     assessment.level === 'high' ? 'High congestion' : 'Mild congestion'));
   const body = node('div', 'congestion-card__details');
-  body.append(node('p', 'congestion-card__summary', assessment.summary));
+  body.append(formattedText('congestion-card__summary', assessment.summary));
   body.append(node('p', 'congestion-card__meta',
     `${assessment.basis === 'measured' ? 'Measured conditions' : 'Reported conditions'} · ${dateLabel(assessment.evidenceAsOf)}`));
   const alt = assessment.alternativePort;
@@ -51,18 +53,21 @@ export function createCongestionCard(port, assessment, onReroute) {
       node('p', 'congestion-card__meta', 'Candidate only · service and shipment suitability need checking.'));
     const link = sourceLink(alt.source);
     if (link) alternative.append(link);
+    if (alt.onwardTransport) alternative.append(transportEstimate(alt.onwardTransport));
     if (onReroute) {
       const reroute = node('button', 'congestion-card__reroute', 'Reroute');
       reroute.type = 'button';
       reroute.setAttribute('aria-label', `Reroute via ${alt.name}`);
       const status = node('p', 'congestion-card__meta');
       status.setAttribute('role', 'alert');
-      reroute.addEventListener('click', event => {
+      reroute.addEventListener('click', async event => {
         event.stopPropagation();
         if (reroute.disabled) return;
         reroute.disabled = true;
-        try { onReroute({ portId: port.code, alternativePort: alt }); }
-        catch (error) { status.textContent = error.message; reroute.disabled = false; }
+        status.textContent = ''; reroute.textContent = 'Calculating alternative…';
+        try { await onReroute({ portId: port.code, alternativePort: alt }); reroute.textContent = 'Alternative shown'; }
+        catch (error) { status.textContent = error.name === 'AbortError' ? 'Alternative calculation cancelled.' : error.message; reroute.textContent = 'Reroute'; }
+        finally { reroute.disabled = false; }
       });
       alternative.append(reroute, status);
     }
@@ -70,11 +75,9 @@ export function createCongestionCard(port, assessment, onReroute) {
   body.append(alternative);
   const sources = node('div', 'congestion-card__sources');
   sources.append(node('p', 'congestion-card__eyebrow', 'Sources'));
-  for (const source of assessment.sources ?? []) {
-    const link = sourceLink(source);
-    if (link) sources.append(link);
-  }
-  body.append(sources, node('p', 'congestion-card__meta', 'Current reports · not a forecast for your arrival.'));
+  sources.append(sourceList(assessment.sources ?? []));
+  body.append(sources, node('p', 'congestion-card__meta', 'Recent reports · not a forecast for your arrival.'));
+  for (const note of assessment.qualityNotes || []) body.append(node('p', 'congestion-card__meta', note));
   disclosure.append(level, body);
   item.append(disclosure);
   list.append(item);
@@ -98,7 +101,9 @@ export function createPortMarker(port, labelText, onOpen, onExpire = () => {}) {
   function paint() {
     const congestion = issueLevel(current), count = issues.length + (congestion ? 1 : 0);
     button.hidden = !count;
-    button.textContent = `${count} ${count === 1 ? 'issue' : 'issues'}`;
+    button.textContent = `${count} ${count === 1 ? 'alert' : 'alerts'}`;
+    button.dataset.level = congestion === 'high' || issues.some(issue => issue.severity === 'red') ? 'high'
+      : congestion || issues.some(issue => issue.severity === 'yellow') ? 'mild' : 'info';
     button.setAttribute('aria-label', `${port.name}: ${count} ${count === 1 ? 'issue' : 'issues'}. Show issues`);
   }
   button.addEventListener('click', (event) => {

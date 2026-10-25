@@ -161,6 +161,13 @@ class Repository:
             raise RouteError('unsupported_port', 'This port has no supported routing access point.')
         return port
 
+    def port_land_coordinates(self, locode):
+        """Catalogue location for landside planning; never use offshore routing nodes."""
+        if self.settings.tideline_mode == 'demo':
+            return None
+        record = self.database().ports.find_one({'locode': locode, 'supported': True}, {'location': 1}) or {}
+        return record.get('location', {}).get('coordinates')
+
     def load_graph(self):
         if self.settings.tideline_mode == 'mongo' and active_references() is None:
             with self.planning_context():

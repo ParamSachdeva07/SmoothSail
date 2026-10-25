@@ -79,13 +79,13 @@ def candidates(graph, origin, destination, forecast, departure, notices, count, 
     return result
 
 
-def calculate(request: RouteRequest, repository):
+def calculate(request: RouteRequest, repository, *, include_display=True):
     started = time.monotonic()
     with repository.planning_context():
-        return _calculate(request, repository, started)
+        return _calculate(request, repository, started, include_display=include_display)
 
 
-def _calculate(request, repository, started):
+def _calculate(request, repository, started, include_display=True):
     phases, phase_start = {}, started
     def phase(name):
         nonlocal phase_start
@@ -160,7 +160,8 @@ def _calculate(request, repository, started):
         # Display all available cached forecasts, including oceans away from the
         # chosen route. This does not fetch more data or change routing samples.
         # Unknown polar/coastal cells and times remain null.
-        wave_grid = forecast.global_wave_grid(departure)
+        if include_display:
+            wave_grid = forecast.global_wave_grid(departure)
     for notice in restrictions:
         if notice.get('geometry'):
             overlays['features'].append({'type': 'Feature', 'geometry': notice['geometry'],

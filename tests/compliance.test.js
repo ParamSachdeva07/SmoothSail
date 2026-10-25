@@ -72,3 +72,48 @@ test('category progress shows completed work separately from findings and failed
     coverageNotes: ['Intersections need verification'] } } }, 'security');
   assert.equal(row.label, 'Research complete'); assert.match(row.description, /Intersections need verification/);
 });
+
+test('post-selection details reuse the report, carry IMO and text, and cannot be overwritten by older results', async () => {
+  let primary, detail, resolveDetail;
+  const planner = createAnalysisPlanner((input, options) => { primary = options; return new Promise(() => {}); },
+    (input, options) => { detail = { input, ...options }; return new Promise(resolve => { resolveDetail = resolve; }); });
+  const report = { reportId: 'existing' };
+  const calculated = planner.calculate({ origin: 'NLRTM', destination: 'SGSIN' });
+  primary.onEvent({ type: 'route_report', report }); await calculated;
+  const pending = planner.researchDetails(report, { cargoText: 'UN1993 cargo', documentReferences: [{ id: 'page1' }], imoNumber: '9876543' });
+  primary.onEvent({ type: 'context_ready', analysisId: 'a1', contextToken: 'secret' });
+  await Promise.resolve();
+  assert.equal(detail.input.vessel.imoNumber, '9876543');
+  assert.equal(detail.input.cargoText, 'UN1993 cargo');
+  assert.equal(detail.input.analysisId, 'a1'); assert.equal('routeReport' in detail.input, false);
+  detail.onEvent({ type: 'context_ready', analysisId: 'a1', contextToken: 'secret' }); await pending;
+  detail.onEvent({ type: 'assessment', category: 'trade', status: 'completed', findings: [{ id: 'new' }] });
+  primary.onEvent({ type: 'assessment', category: 'trade', findings: [{ id: 'old' }] });
+  assert.equal(planner.getState(report).findings[0].id, 'new');
+  primary.onEvent({ type: 'assessment', category: 'congestion', assessments: [{ portId: 'NLRTM' }] });
+  assert.equal(planner.getState(report).congestion.length, 1);
+  detail.onEvent({ type: 'complete' }); resolveDetail();
+  assert.equal(planner.getState(report).complete, true);
+});
+
+test('a rendering failure cannot interrupt research delivery or completion', async t => {
+  const errors = [];
+  t.mock.method(console, 'error', (...parts) => errors.push(parts));
+  let stream;
+  const planner = createAnalysisPlanner((input, options) => { stream = options; return new Promise(() => {}); });
+  const report = {};
+  const pending = planner.calculate({ origin: 'NLRTM', destination: 'SGSIN' });
+  stream.onEvent({ type: 'route_report', report }); await pending;
+  planner.subscribe(report, () => { throw new Error('View failed'); });
+  const updates = [];
+  planner.subscribe(report, state => updates.push(Object.keys(state.checks).length));
+  stream.onEvent({ type: 'assessment', category: 'security', status: 'completed', findings: [] });
+  stream.onEvent({ type: 'assessment', category: 'environment', status: 'completed', findings: [] });
+  stream.onEvent({ type: 'complete' });
+  assert.deepEqual(updates, [0, 1, 2, 2]);
+  assert.equal(planner.getState(report).complete, true);
+  assert.equal(planner.getState(report).error, null);
+  assert.ok(errors.length > 0);
+  const noEvidence = categoryProgress({ checks: { congestion: { status: 'unavailable', reason: 'insufficient_recent_evidence' } } }, 'congestion');
+  assert.equal(noEvidence.label, 'No recent evidence');
+});

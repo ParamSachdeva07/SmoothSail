@@ -1,3 +1,6 @@
+import { api } from '../../api/client.js';
+import { rerouteRequest } from '../../data/reroute.js';
+import { transportEstimate } from '../../globe/transport-estimate.js';
 import { icon } from '../icons.js';
 import { createFlatMap } from '../../globe/flatmap.js';
 import { getReport, getRoutes, findRoute, reportPort, formatDuration, formatNm, formatUsd, formatNumber } from '../../data/routes.js';
@@ -5,9 +8,10 @@ import { formatEta } from '../../data/shipment.js';
 import { validWaveGrid } from '../../globe/waves.js';
 import { routePlanner } from '../../data/route-planning.js';
 import { COMPLIANCE_CATEGORIES, categoryProgress } from '../../data/compliance.js';
+import { createVoyageChecklist } from '../voyage-checklist.js';
 import { createComplianceChat } from '../compliance-chat.js';
 
-export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
+export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }) {
   const element = document.createElement('section');
   element.className = 'screen detail';
   element.id = 'screen-detail';
@@ -16,32 +20,14 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
     <div class="detail__layout">
       <header class="detail__head">
         <div><h1 class="wordmark">SmoothSail</h1><p class="mono-label map-status" role="status"></p></div>
-        <button class="button button--quiet" type="button" data-action="back">${icon('arrow-left')}<span>All routes</span></button>
+        <div class="detail__head-actions"><button class="button button--primary" type="button" data-action="checklist" disabled>Create voyage checklist</button><button class="button button--quiet" type="button" data-action="back">${icon('arrow-left')}<span>All routes</span></button></div>
       </header>
-      <div class="detail__middle">
-        <div class="controls">
-          <button class="overlay-trigger" type="button" data-action="overlays" aria-expanded="false">
-            ${icon('layers')}<span>Overlays</span>
-          </button>
-          <div class="toggles" hidden>
-            <p class="toggles__title mono-label">${icon('layers')}<span>Overlays</span></p>
-            <label class="toggle"><input type="checkbox" data-overlay="waves" checked><span>Wave forecast</span></label>
-            <div class="wave-scale" data-role="wave-scale">
-              <div class="wave-scale__ramp" aria-hidden="true"></div>
-              <div class="wave-scale__labels mono-label"><span>0</span><span>2</span><span>4</span><span>6+ m</span></div>
-              <p class="toggles__note mono-label" data-role="wave-note">Significant wave height</p>
-            </div>
-            <label class="toggle" title="Forecast wave-height contours, not official storm warnings"><input type="checkbox" data-overlay="hazards" checked><span>High seas · 4+ m</span></label>
-            <label class="toggle"><input type="checkbox" data-overlay="restrictions" disabled><span>Restricted areas</span></label>
-            <p class="toggles__note mono-label" data-role="restriction-note">Data unavailable</p>
-            <label class="toggle"><input type="checkbox" data-overlay="alternates"><span>Other routes</span></label>
-            <p class="toggles__note mono-label">Click a restricted area for details</p>
-          </div>
-        </div>
-      </div>
+      <div class="detail__middle" aria-hidden="true"></div>
       <button class="route-summary__show" type="button" data-action="toggle-summary" aria-expanded="false" hidden>Show</button>
       <div class="route-summary" aria-label="Route summary">
         <button class="route-summary__hide" type="button" data-action="toggle-summary" aria-expanded="true">Hide</button>
+        <div class="route-picker" role="group" aria-label="Choose route option"></div>
+        <p class="route-summary__selection" data-role="route-selection" aria-live="polite"></p>
         <dl class="route-summary__metrics">
           <div class="metric"><dt class="mono-label">Transit</dt><dd class="metric__value" data-role="duration"></dd></div>
           <div class="metric"><dt class="mono-label">Distance</dt><dd class="metric__value" data-role="distance"></dd></div>
@@ -54,8 +40,8 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
             <div class="wave-scale__labels"><span>0</span><span>2</span><span>4</span><span>6+ m</span></div>
           </div>
         </dl>
+        <section class="reroute-comparison" aria-label="Alternative route comparison" hidden></section>
         <div class="route-summary__footer">
-          <button class="route-summary__back" type="button" data-action="back">Go Back</button>
           <div class="route-summary__playback">
             <label class="playback-speed" data-role="playback-speed" hidden>
             <select data-action="speed" aria-label="Voyage preview speed">
@@ -76,17 +62,68 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
         <dl data-role="compliance-checks"></dl>
       </div>
     </details>`;
-  let flat = null;
+  let flat = null, rerouteController = null, alternativePreview = null, alternativeSelected = false;
+  const alternativePanel = element.querySelector('.reroute-comparison');
+  async function onReroute(change) {
+    const report = getReport(), route = findRoute(getSelectedRouteId());
+    const input = rerouteRequest(report, route, change, routePlanner.getState(report)?.routeInput);
+    rerouteController?.abort(); const controller = new AbortController(); rerouteController = controller;
+    alternativePanel.hidden = false; alternativePanel.textContent = 'Calculating alternative route…';
+    try {
+      const preview = await api.previewReroute(input, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      alternativePreview = preview;
+      await flat?.setReroutePreview(preview);
+      alternativePanel.replaceChildren();
+      const selector = document.createElement('div'); selector.className = 'reroute-selector'; selector.setAttribute('role', 'group'); selector.setAttribute('aria-label', 'Select displayed route');
+      for (const [label, isAlternative] of [['Original route', false], ['Alternative route', true]]) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'button button--quiet';
+        button.textContent = label; button.dataset.alternative = String(isAlternative);
+        button.addEventListener('click', () => selectPreview(isAlternative)); selector.append(button);
+      }
+      const title = document.createElement('h3'); title.textContent = `Alternative via ${change.alternativePort.name}`;
+      const legend = document.createElement('p'); legend.className = 'reroute-legend';
+      legend.textContent = 'Pink · original   Yellow · alternative   Dashed · road transfer';
+      const sea = document.createElement('p');
+      sea.textContent = `${formatDuration(preview.route.durationHours)} · ${formatNm(preview.route.distanceNm)} · ${formatUsd(preview.route.cost?.totalUsd)} whole-vessel sea cost`;
+      const note = document.createElement('p'); note.className = 'congestion-card__meta'; note.textContent = preview.notice;
+      const remove = document.createElement('button'); remove.className = 'button button--quiet'; remove.type = 'button'; remove.textContent = 'Remove alternative';
+      remove.addEventListener('click', () => { selectPreview(false); alternativePreview = null; flat?.setReroutePreview(null); alternativePanel.hidden = true; });
+      alternativePanel.append(selector, title, legend, sea, transportEstimate(preview.onwardTransport), note, remove);
+      selectPreview(true);
+    } catch (error) {
+      if (rerouteController === controller) { alternativePanel.textContent = error.name === 'AbortError' ? '' : error.message; alternativePanel.hidden = error.name === 'AbortError'; }
+      throw error;
+    }
+  }
   let congestionRevision = 0;
   let unsubscribe = () => {};
   const chat = createComplianceChat(element);
+  const checklist = createVoyageChecklist(element);
   const progress = element.querySelector('.compliance-progress');
   if (window.matchMedia('(max-width: 760px)').matches) progress.open = false;
   const learnMore = finding => {
     const state = routePlanner.getState(getReport());
-    if (state) { progress.open = false; chat.open(finding, state); }
+    if (state) { progress.open = false; chat.open(finding, state, getSelectedRouteId()); }
   };
+  function selectPreview(alternative) {
+    alternativeSelected = alternative && Boolean(alternativePreview);
+    const route = alternativeSelected ? alternativePreview.route : findRoute(getSelectedRouteId());
+    showMetrics(route); updateRoutePicker(); flat?.selectReroute(alternativeSelected); chat.close(); checklist.close();
+    for (const button of alternativePanel.querySelectorAll('[data-alternative]')) button.setAttribute('aria-pressed', String((button.dataset.alternative === 'true') === alternativeSelected));
+    const state = routePlanner.getState(getReport());
+    if (state) { updateCompliance(state); flat?.setPortCongestion(alternativeSelected ? [] : state.congestion); }
+  }
   function updateCompliance(state) {
+    if (alternativeSelected) {
+      element.querySelector('[data-action="checklist"]').disabled = true;
+      element.querySelector('[data-role="compliance-count"]').textContent = 'Not assessed';
+      const checks = element.querySelector('[data-role="compliance-checks"]'); checks.replaceChildren();
+      const note = document.createElement('p'); note.className = 'congestion-card__meta';
+      note.textContent = 'This alternative has not undergone voyage compliance research. Select the original route to see its completed checks and checklist.';
+      checks.append(note); flat?.setComplianceFindings([]); return;
+    }
+    element.querySelector('[data-action="checklist"]').disabled = !state.context || state.detailsPending;
     const count = Object.keys(state.checks).length;
     element.querySelector('[data-role="compliance-count"]').textContent = `${count} / ${COMPLIANCE_CATEGORIES.length}`;
     const checks = element.querySelector('[data-role="compliance-checks"]'); checks.replaceChildren();
@@ -108,13 +145,11 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
     }
     flat?.setComplianceFindings(state.findings);
   }
-  const waveNote = element.querySelector('[data-role="wave-note"]');
-  const waveScale = element.querySelector('[data-role="wave-scale"]');
+  const waveScale = element.querySelector('[data-role="summary-wave-scale"]');
   function updateWaveState({ status, held, validAt }) {
-    waveNote.textContent = status === 'loading' ? 'Preparing wave display…' : status === 'error' ? 'Wave display unavailable' :
-      status === 'unavailable' ? 'Forecast unavailable' : held ? `Forecast · ${formatEta(validAt)} · held` : 'Significant wave height';
     waveScale.dataset.available = String(status === 'ready');
-    element.querySelector('[data-role="summary-wave-scale"]').dataset.available = String(status === 'ready');
+    waveScale.title = status === 'loading' ? 'Preparing wave display…' : status === 'error' ? 'Wave display unavailable' :
+      status === 'unavailable' ? 'Forecast unavailable' : held ? `Forecast · ${formatEta(validAt)} · held` : 'Significant wave height';
   }
   function updatePlayback({ playing, hour = 0, duration = 0, speed = 1 }) {
     const button = element.querySelector('[data-action="preview"]');
@@ -124,27 +159,16 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
     element.querySelector('[data-role="playback-speed"]').hidden = !playing && hour === 0;
     element.querySelector('[data-action="speed"]').value = String(speed);
   }
-  function updateNotices({ available, active }) {
-    const toggle = element.querySelector('[data-overlay="restrictions"]');
-    toggle.disabled = !available;
-    if (!available) toggle.checked = false;
-    element.querySelector('[data-role="restriction-note"]').textContent = available ? `${active} active supplied notices` : 'Verified data unavailable';
-  }
   element.addEventListener('change', (event) => {
-    if (event.target.dataset.overlay) flat?.setOverlay(event.target.dataset.overlay, event.target.checked);
-    if (event.target.dataset.overlay === 'waves') element.querySelector('[data-role="wave-scale"]').hidden = !event.target.checked;
     if (event.target.dataset.action === 'speed') flat?.setPlaybackSpeed(Number(event.target.value));
   });
   element.addEventListener('click', (event) => {
     const action = event.target.closest('button[data-action]')?.dataset.action;
-    if (action === 'back') onBack?.();
-    if (action === 'overlays') {
-      const trigger = element.querySelector('[data-action="overlays"]');
-      const panel = element.querySelector('.toggles');
-      const expanded = trigger.getAttribute('aria-expanded') !== 'true';
-      trigger.setAttribute('aria-expanded', String(expanded));
-      panel.hidden = !expanded;
+    if (action === 'checklist') {
+      const state = routePlanner.getState(getReport());
+      if (state?.context) checklist.open(state, getSelectedRouteId());
     }
+    if (action === 'back') onBack?.();
     if (action === 'preview') flat?.togglePlayback();
     if (action === 'toggle-summary') {
       const panel = element.querySelector('.route-summary');
@@ -154,27 +178,38 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
       (panel.hidden ? show : element.querySelector('.route-summary__hide')).focus();
     }
   });
-  function render(route) {
-    const report = getReport();
-    const origin = reportPort(report, 'origin');
-    const destination = reportPort(report, 'destination');
+  function updateRoutePicker() {
+    const picker = element.querySelector('.route-picker'); picker.replaceChildren();
+    for (const route of getRoutes()) {
+      const button = document.createElement('button'); button.type = 'button';
+      button.textContent = route.label; button.className = 'route-picker__option';
+      button.setAttribute('aria-pressed', String(!alternativeSelected && route.id === getSelectedRouteId()));
+      button.addEventListener('click', () => {
+        if (route.id === getSelectedRouteId()) { selectPreview(false); return; }
+        onSelectRoute(route.id); chat.close(); checklist.close(); render(route, true);
+      });
+      picker.append(button);
+    }
+  }
+  function showMetrics(route) {
     const text = (role, value) => { element.querySelector(`[data-role="${role}"]`).textContent = value; };
+    text('route-selection', alternativeSelected ? `Alternative · ${alternativePreview.origin} → ${alternativePreview.destination}` : `${route.label} · ${route.name}`);
     text('duration', formatDuration(route.durationHours));
     text('distance', formatNm(route.distanceNm));
     text('cost', formatUsd(route.cost?.totalUsd, { compact: true }));
     text('emissions', `${formatNumber(route.emissions?.co2Tonnes)} t CO₂`);
     text('arrival', formatEta(route.eta));
-    element.querySelector('[data-overlay="alternates"]').checked = false;
-    flat?.setOverlay('alternates', false);
-    flat?.setAlternates(getRoutes().filter((candidate) => candidate.id !== route.id));
-    const waveToggle = element.querySelector('[data-overlay="waves"]');
-    waveToggle.disabled = !validWaveGrid(report.waveGrid);
-    waveToggle.checked = !waveToggle.disabled;
-    const hazardToggle = element.querySelector('[data-overlay="hazards"]');
-    hazardToggle.disabled = waveToggle.disabled;
-    hazardToggle.checked = !hazardToggle.disabled;
-    element.querySelector('[data-overlay="restrictions"]').checked = true;
-    element.querySelector('[data-role="wave-scale"]').hidden = waveToggle.disabled;
+  }
+  function render(route, preserveAlternative = false) {
+    rerouteController?.abort(); alternativeSelected = false;
+    if (!preserveAlternative) { alternativePanel.hidden = true; alternativePreview = null; }
+    for (const button of alternativePanel.querySelectorAll('[data-alternative]')) button.setAttribute('aria-pressed', String(button.dataset.alternative === 'false'));
+    updateRoutePicker();
+    const report = getReport();
+    const origin = reportPort(report, 'origin');
+    const destination = reportPort(report, 'destination');
+    showMetrics(route);
+    waveScale.dataset.available = String(validWaveGrid(report.waveGrid));
     flat?.setActive(true);
     const revision = ++congestionRevision;
     unsubscribe();
@@ -185,13 +220,15 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
       if (congestionRevision !== revision) return;
       updateCompliance(state);
       if (previousCongestion !== state.congestion) {
-        previousCongestion = state.congestion; flat?.setPortCongestion(state.congestion);
+        previousCongestion = state.congestion; flat?.setPortCongestion(alternativeSelected ? [] : state.congestion);
       }
     });
-    Promise.resolve(mapReady).then(() => {
+    Promise.resolve(mapReady).then(async () => {
+      if (congestionRevision !== revision) return;
+      if (preserveAlternative && alternativePreview) await flat?.setReroutePreview(alternativePreview);
       if (congestionRevision !== revision) return;
       const state = routePlanner.getState(report);
-      if (state) { updateCompliance(state); flat?.setPortCongestion(state.congestion); }
+      if (state) { updateCompliance(state); flat?.setPortCongestion(alternativeSelected ? [] : state.congestion); }
     });
   }
   return {
@@ -200,13 +237,13 @@ export function createDetailScreen({ getSelectedRouteId, onBack, onReroute }) {
       const status = element.querySelector('.map-status');
       if (!flat) {
         status.textContent = 'Loading map…';
-        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onPlaybackState: updatePlayback, onNotices: updateNotices, onWaveState: updateWaveState, onReroute, onLearnMore: learnMore }); }
+        try { flat = createFlatMap({ container: element.querySelector('#flatmap'), onStatus: (message) => { status.textContent = message; }, onPlaybackState: updatePlayback, onWaveState: updateWaveState, onReroute, onLearnMore: learnMore }); }
         catch { status.textContent = 'Map rendering is unavailable in this browser. Route estimates are shown below.'; }
       }
       flat?.resize();
       const route = findRoute(getSelectedRouteId());
       if (route) render(route);
     },
-    leave() { congestionRevision++; unsubscribe(); chat.close(); flat?.setActive(false); }
+    leave() { rerouteController?.abort(); congestionRevision++; unsubscribe(); chat.close(); checklist.close(); flat?.setActive(false); }
   };
 }

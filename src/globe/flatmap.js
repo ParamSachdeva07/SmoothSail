@@ -1,13 +1,14 @@
 // Quiet Mapbox Light basemap for the selected route; the landing globe stays dotted.
 import mapboxgl from 'mapbox-gl';
 import { SETTINGS, cssToken, cssDurationMs } from '../settings.js';
-import { routeFeature, routeBounds } from './geometry.js';
+import { routeFeature, routeBounds, geometryLines } from './geometry.js';
 import { createWaveOverlay } from './wave-overlay.js';
 import { createVoyagePlayer } from './voyage-player.js';
 import { createHazardOverlay } from './hazard-overlay.js';
 import { createSmoothZoom } from './smooth-zoom.js';
 import { forecastMapBounds, minimumCoverageZoom, WORLD_BOUNDS } from './map-coverage.js';
 import { createPortMarker } from './port-congestion.js';
+import { createPortPopup } from './port-popup.js';
 import { createPortIssuesCard } from './port-issues.js';
 import { findingsForPort } from '../data/compliance.js';
 
@@ -77,6 +78,16 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
         paint: { 'line-color': color, 'line-width': width }
       });
     }
+    for (const id of ['reroute-sea', 'reroute-ground']) {
+      map.addSource(id, { type: 'geojson', data: empty(), tolerance: 0 });
+      map.addLayer({ id: `${id}-outline`, type: 'line', source: id,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#6E6500', 'line-width': 4, 'line-opacity': 0.55, 'line-offset': id === 'reroute-sea' ? 4 : 0 } });
+      map.addLayer({ id: `${id}-line`, type: 'line', source: id,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#FFEE00', 'line-width': 2.5, 'line-offset': id === 'reroute-sea' ? 4 : 0,
+          ...(id === 'reroute-ground' ? { 'line-dasharray': [2, 2] } : {}) } });
+    }
     map.addSource('ports', { type: 'geojson', data: empty() });
     map.addLayer({ id: 'ports-layer', type: 'circle', source: 'ports', paint: {
       'circle-color': cssToken('--accent-primary', '#FF00A1'), 'circle-radius': 5,
@@ -106,7 +117,8 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     onStatus('');
     resolve();
   }));
-  let latestRoute = null;
+  let latestRoute = null, reroutePreview = null;
+  let alternativeMarker = null;
   let revision = 0;
   const markers = [];
   const portMarkers = new Map();
@@ -133,6 +145,8 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     rows.forEach((row, id) => { if (!retained.has(id)) row.remove(); });
     previous.dataset.level = next.dataset.level ?? '';
     previous.querySelector('.congestion-card__eyebrow').textContent = next.querySelector('.congestion-card__eyebrow').textContent;
+    previous.classList.toggle('has-active-issue', Boolean(previous.querySelector('details[open]')));
+    congestionPopup.update();
   }
   function showCongestion(port, assessment, button) {
     const wasOpen = button.getAttribute('aria-expanded') === 'true';
@@ -140,25 +154,24 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     if (wasOpen) return;
     openPort = port;
     button.setAttribute('aria-expanded', 'true');
-    congestionPopup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true, focusAfterOpen: true,
-      maxWidth: `${Math.min(320, Math.max(180, container.clientWidth - 32))}px`, className: 'congestion-popup',
-      offset: { top: [0, 10], bottom: [0, -54], left: [0, 0], right: [0, 0],
-        'top-left': [0, 10], 'top-right': [0, 10], 'bottom-left': [0, -54], 'bottom-right': [0, -54] } })
-      .setLngLat(port.coordinates).setDOMContent(createPortIssuesCard(port, assessment, portIssues.get(port.code) ?? [], onReroute, onLearnMore)).addTo(map);
-    congestionPopup.getElement().setAttribute('role', 'dialog');
-    congestionPopup.getElement().setAttribute('aria-label', `${port.name} voyage issues`);
+    congestionPopup = createPortPopup({ map, container, coordinates: port.coordinates,
+      card: createPortIssuesCard(port, assessment, portIssues.get(port.code) ?? [], onReroute, onLearnMore),
+      label: `${port.name} voyage issues`,
+      onClose: () => { button.setAttribute('aria-expanded', 'false'); openPort = null; }
+    });
     congestionPopup.getElement().addEventListener('keydown', event => {
       if (event.key === 'Escape') { closeCongestion(); button.focus(); }
     });
-    congestionPopup.on('close', () => { button.setAttribute('aria-expanded', 'false'); openPort = null; });
   }
+  map.on('click', closeCongestion);
   function fit() {
     if (!latestRoute || !container.clientWidth || !container.clientHeight) return;
     zoom.reset();
     const mobile = container.clientWidth < 900;
     const progressWidth = container.parentElement.querySelector('.compliance-progress')?.offsetWidth ?? 0;
-    map.fitBounds(routeBounds(latestRoute.geometry), {
-      padding: { top: 150, right: mobile ? 30 : Math.max(240, progressWidth + 65), bottom: Math.max(mobile ? 230 : 190, (container.parentElement.querySelector('.route-summary')?.offsetHeight ?? 130) + 45), left: mobile ? 30 : 65 },
+    map.fitBounds(routeBounds({ type: 'MultiLineString', coordinates: [...geometryLines(latestRoute.geometry),
+      ...geometryLines(reroutePreview?.route?.geometry), ...geometryLines(reroutePreview?.onwardTransport?.geometry)] }), {
+      padding: { top: Math.min(150, container.clientHeight * 0.2), right: mobile ? 30 : Math.min(container.clientWidth * 0.3, Math.max(240, progressWidth + 65)), bottom: Math.min(container.clientHeight * 0.4, Math.max(mobile ? 230 : 190, (container.parentElement.querySelector('.route-summary')?.offsetHeight ?? 130) + 45)), left: mobile ? 30 : reroutePreview ? Math.min(container.clientWidth * 0.35, (container.parentElement.querySelector('.route-summary')?.offsetWidth ?? 430) + 45) : 65 },
       retainPadding: false,
       maxZoom: 6, duration: cssDurationMs('--camera-fit-duration', 900)
     });
@@ -184,7 +197,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
 
   return {
     resize,
-    destroy: () => { closeCongestion(); portMarkers.forEach(marker => marker.destroy()); player?.destroy(); waves?.destroy(); hazards?.destroy(); zoom.destroy(); observer.disconnect(); markers.forEach((marker) => marker.remove()); map.remove(); },
+    destroy: () => { alternativeMarker?.remove(); closeCongestion(); portMarkers.forEach(marker => marker.destroy()); player?.destroy(); waves?.destroy(); hazards?.destroy(); zoom.destroy(); observer.disconnect(); markers.forEach((marker) => marker.remove()); map.remove(); },
     showRoute(route, { origin, destination, departureTime, waveGrid, overlays }) {
       latestRoute = route;
       coverageBounds = forecastMapBounds(waveGrid);
@@ -195,6 +208,8 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
       const current = ++revision;
       return ready.then(() => {
         if (revision !== current) return;
+        reroutePreview = null; map.setPaintProperty('route-layer', 'line-opacity', 1); alternativeMarker?.remove(); alternativeMarker = null;
+        map.getSource('reroute-sea').setData(empty()); map.getSource('reroute-ground').setData(empty());
         map.getSource('route').setData(collection([routeFeature(route)]));
         const ports = [{ ...origin, role: 'origin' }, { ...destination, role: 'destination' }];
         map.getSource('ports').setData(collection(ports.map((port) => point(port.coordinates, { role: port.role, name: port.name }))));
@@ -219,6 +234,33 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
         player.load(route, departureTime);
         fit();
       });
+    },
+    selectReroute(selected) {
+      closeCongestion();
+      ready.then(() => {
+        map.setPaintProperty('route-layer', 'line-opacity', selected ? 0.45 : 1);
+        map.setPaintProperty('reroute-sea-line', 'line-opacity', selected ? 1 : 0.65);
+        map.setPaintProperty('reroute-sea-line', 'line-width', selected ? 3.5 : 2.5);
+        player.load(selected && reroutePreview ? reroutePreview.route : latestRoute, departure);
+      });
+    },
+    async setReroutePreview(preview) {
+      await ready;
+      reroutePreview = preview;
+      map.getSource('reroute-sea').setData(preview ? collection([routeFeature(preview.route)]) : empty());
+      map.getSource('reroute-ground').setData(preview?.onwardTransport?.geometry
+        ? collection([{ type: 'Feature', properties: {}, geometry: preview.onwardTransport.geometry }]) : empty());
+      alternativeMarker?.remove(); alternativeMarker = null;
+      if (preview) {
+        const port = Object.values(preview.ports).find(p => p.locode === preview.alternativePortId);
+        if (port?.approachCoordinates) {
+          const label = document.createElement('div'); label.className = 'reroute-port-label';
+          label.textContent = `${port.name} (${port.locode}) · Alternative`;
+          alternativeMarker = new mapboxgl.Marker({ element: label, anchor: 'bottom', offset: [0, -8] })
+            .setLngLat(port.approachCoordinates).addTo(map);
+        }
+      }
+      fit();
     },
     setPortCongestion(assessments) {
       portMarkers.forEach((marker, code) => {

@@ -33,14 +33,15 @@ export function createApiClient(baseUrl = API_BASE_URL, fetcher = globalThis.fet
       if (timer != null) clearTimeout(timer);
     }
   }
-  return {
+  const client = {
     getPorts: (options = {}) => request('/ports?limit=50', { timeoutMs: 60_000, ...options }),
     planRoutes: (input, options = {}) => request('/routes', { ...options, body: input }),
+    previewReroute: (input, options = {}) => request('/routes/reroute', { ...options, body: input }),
     getPortCongestion: (portIds, options = {}) => request('/port-congestion', {
       timeoutMs: null, ...options, body: { portIds }
     }),
-    async analyseVoyage(input, { signal, onEvent } = {}) {
-      const response = await fetcher(`${baseUrl.replace(/\/+$/, '')}/voyages/analyse`, {
+    async analyseVoyage(input, { signal, onEvent, path = '/voyages/analyse' } = {}) {
+      const response = await fetcher(`${baseUrl.replace(/\/+$/, '')}${path}`, {
         method: 'POST', credentials: 'omit', signal,
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input)
       });
@@ -77,8 +78,25 @@ export function createApiClient(baseUrl = API_BASE_URL, fetcher = globalThis.fet
       if (!response.ok) throw new Error(result.error?.message || 'Could not read this document.');
       return result;
     },
+    researchDetails: (input, options = {}) => client.analyseVoyage(input, { ...options, path: '/voyages/details' }),
+    createVoyageChecklist: (body, options = {}) => request('/voyages/checklist', { timeoutMs: null, ...options, body }),
+    async exportVoyageChecklist(body, { signal, format = 'pdf' } = {}) {
+      const bundle = format === 'bundle';
+      const response = await fetcher(`${baseUrl.replace(/\/+$/, '')}/voyages/checklist/${bundle ? 'bundle' : 'pdf'}`, {
+        method: 'POST', credentials: 'omit', signal,
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error?.message || 'Could not export the checklist. Please try again.');
+      }
+      const type = bundle ? 'application/zip' : 'application/pdf';
+      if (!response.headers.get('content-type')?.includes(type)) throw new Error(`The export did not return a ${bundle ? 'ZIP package' : 'PDF'}.`);
+      return response.blob();
+    },
     complianceChat: (body, options = {}) => request('/compliance/chat', { timeoutMs: null, ...options, body })
   };
+  return client;
 }
 
 export const api = createApiClient();

@@ -14,7 +14,7 @@ import { createCompareScreen } from './app/screens/compare.js';
 import { createDetailScreen } from './app/screens/detail.js';
 import { setReport, getReport, findRoute } from './data/routes.js';
 import { routePlanner } from './data/route-planning.js';
-import { shipment, reroutedShipment } from './data/shipment.js';
+import { shipment } from './data/shipment.js';
 import { PORTS } from './data/ports.js';
 
 const root = document.getElementById('app');
@@ -45,8 +45,7 @@ const search = createSearchScreen({
   getGlobe,
   onBack: () => router.go('landing'),
   onSubmit: async (input, signal) => {
-    const report = await routePlanner.calculate(input, { signal, cargoText: shipment.cargoText,
-      documentReferences: shipment.documentReferences });
+    const report = await routePlanner.calculate(input, { signal });
     if (signal.aborted) return;
     setReport(report);
     router.go('compare');
@@ -68,12 +67,8 @@ const compare = createCompareScreen({
 
 const detail = createDetailScreen({
   getSelectedRouteId: () => selectedRouteId,
-  onBack: () => router.go('compare'),
-  onReroute: (change) => {
-    Object.assign(shipment, reroutedShipment(getReport(), change, PORTS));
-    selectedRouteId = null;
-    router.go('search', { autoSubmit: true });
-  }
+  onSelectRoute: id => { selectedRouteId = id; },
+  onBack: () => router.go('compare')
 });
 
 const screens = { landing, search, compare, detail };

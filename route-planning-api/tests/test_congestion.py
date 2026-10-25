@@ -18,6 +18,13 @@ SOURCE = 'https://port.example/operations'
 ALT_SOURCE = 'https://alternative.example/operations'
 
 
+@pytest.fixture(autouse=True)
+def no_live_road_calls(monkeypatch):
+    async def estimate(self, origin, destination):
+        return {'status': 'unavailable', 'originPortId': origin, 'destinationPortId': destination, 'cost': None}
+    monkeypatch.setattr(congestion.OnwardTransport, 'estimate', estimate)
+
+
 def finding(port='NLRTM', level='high', when=NOW - timedelta(hours=2)):
     return Finding.model_validate({
         'portId': port, 'level': level, 'basis': 'reported', 'confidence': 'medium',
@@ -63,7 +70,7 @@ def test_unsubstantiated_or_stale_levels_never_create_badges_or_reassurance(leve
     value = finding(level=level)
     citations = {SOURCE, ALT_SOURCE}
     if change == 'stale':
-        value = finding(level=level, when=NOW - timedelta(hours=73))
+        value = finding(level=level, when=NOW - timedelta(hours=169))
     elif change == 'future':
         value = finding(level=level, when=NOW + timedelta(hours=1))
     elif change == 'no_citation':
@@ -123,7 +130,7 @@ def test_no_eligible_supported_alternative_returns_none(monkeypatch):
 
 
 def test_cache_expires_before_evidence_crosses_freshness_limit():
-    value = finding(when=NOW - timedelta(hours=71, minutes=55))
+    value = finding(level="low", when=NOW - timedelta(hours=71, minutes=55))
     assert check(value).refresh_after == NOW + timedelta(minutes=5)
 
 
@@ -131,7 +138,7 @@ def provider_response(value=None, status='completed', annotations=True):
     return {'status': status, 'steps': [
         {'type': 'google_search_result', 'result': [{'search_suggestions': '<div>Search attribution</div>'}]},
         {'type': 'model_output', 'content': [{'type': 'text', 'text': json.dumps({
-            'assessments': [(value or finding()).model_dump(mode='json', by_alias=True)]}),
+            'assessments': [(value or finding()).model_dump(mode='json', by_alias=True, exclude={'alternative_port'})]}),
             'annotations': [{'type': 'url_citation', 'url': url} for url in (SOURCE, ALT_SOURCE)] if annotations else []}]},
     ]}
 
@@ -144,6 +151,7 @@ def test_provider_request_is_one_bounded_grounded_argon_call():
         assert body['model'] == 'gemini-4-argon'
         assert body['tools'] == [{'type': 'google_search'}]
         assert body['generation_config']['thinking_level'] == 'low'
+        assert body['generation_config']['max_output_tokens'] == 3072
         assert body['response_format']['mime_type'] == 'application/json'
         assert request.extensions['timeout']['read'] is None
         assert request.extensions['timeout']['connect'] == 30
@@ -151,7 +159,7 @@ def test_provider_request_is_one_bounded_grounded_argon_call():
         return httpx.Response(200, json=provider_response())
     result = asyncio.run(congestion.research(config(), [{'portId': 'NLRTM'}], NOW, httpx.MockTransport(handler)))
     assert len(calls) == 1 and result['NLRTM'].level == 'high'
-    assert result['NLRTM'].search_suggestions == ['<div>Search attribution</div>']
+    assert result['NLRTM'].search_suggestions == []
 
 
 def test_provider_json_without_tool_citations_is_unknown():
@@ -192,7 +200,7 @@ def test_missing_key_is_immediate_and_never_reads_mongo_or_calls_provider(monkey
     assert all(a.level == 'unknown' and a.research_status == 'not_configured' for a in result.assessments)
 
 
-def test_concurrent_pair_requests_coalesce_and_cache_preserves_callers_order(monkeypatch):
+def test_identical_requests_coalesce_and_reverse_voyages_keep_transfer_direction(monkeypatch):
     calls = []
     async def research(settings, seeds, now):
         calls.append(seeds)
@@ -203,7 +211,10 @@ def test_concurrent_pair_requests_coalesce_and_cache_preserves_callers_order(mon
         service = congestion.CongestionService(Repo(), config())
         a = CongestionRequest(port_ids=['NLRTM', 'SGSIN'])
         b = CongestionRequest(port_ids=['SGSIN', 'NLRTM'])
-        first, second = await asyncio.gather(service.assess(a), service.assess(b))
+        first, duplicate, second = await asyncio.gather(service.assess(a), service.assess(a), service.assess(b))
+        assert first == duplicate
+        assert first.assessments[0].alternative_port.onward_transport['originPortId'] == 'NLRTM'
+        assert second.assessments[1].alternative_port.onward_transport['destinationPortId'] == 'NLRTM'
         cached = await service.assess(a)
         assert [v.port_id for v in second.assessments] == b.port_ids
         assert not first.assessments[0].cached
@@ -213,7 +224,7 @@ def test_concurrent_pair_requests_coalesce_and_cache_preserves_callers_order(mon
         assert service.key('NLRTM', changed.known_data['NLRTM']) == service.key('NLRTM', [])
         await service.close()
     asyncio.run(run())
-    assert len(calls) == 1
+    assert len(calls) == 2
 
 
 def test_research_can_finish_after_the_previous_service_deadline(monkeypatch):

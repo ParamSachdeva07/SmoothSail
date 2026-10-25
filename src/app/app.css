@@ -955,15 +955,6 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 .congestion-card__issue[data-level="high"] .congestion-dot { background: #d34b4b; }
 .congestion-card__issue[data-level="mild"] .congestion-dot { background: #c79638; }
 .congestion-card__issue[data-level="info"] .congestion-dot { background: #86929a; }
-.compliance-chat { position: absolute; z-index: 8; pointer-events: auto; right: var(--gutter); bottom: var(--gutter); width: min(350px, calc(100vw - 2 * var(--gutter))); box-sizing: border-box; padding: 18px; background: var(--bg, #fff); border: 1px solid #d9dddf; box-shadow: 0 12px 40px #172c4018; font: 14px/1.5 var(--font-ui); }
-.compliance-chat header { display: flex; justify-content: space-between; align-items: center; font-weight: 500; }
-.compliance-chat header button { border: 0; background: transparent; color: var(--text); font-size: 24px; cursor: pointer; }
-.compliance-chat__messages { max-height: min(34vh, 300px); overflow: auto; overflow-wrap: anywhere; }
-.compliance-chat__user { border-left: 2px solid #123dff; padding-left: 10px; }
-.compliance-chat__assistant { white-space: pre-wrap; }
-.compliance-chat form { display: flex; gap: 8px; margin-top: 12px; }
-.compliance-chat input { width: 0; min-width: 0; flex: 1; border: 1px solid #d9dddf; background: transparent; padding: 8px; color: var(--text); font: inherit; }
-.compliance-chat [type="submit"] { border: 0; border-radius: 999px; padding: 0 16px; background: #123dff; color: #fff; font: inherit; cursor: pointer; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 @media (max-width: 760px) {
   .search .panel-column { background: var(--bg); padding-right: var(--space-3); }
@@ -1020,3 +1011,260 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 .route-summary .wave-scale__labels { display: flex; justify-content: space-between; color: #222; font: 10px/1.2 var(--font-mono); }
 .route-summary__wave[data-available="false"] .wave-scale__ramp { opacity: .15; }
 @media (max-width: 760px) { .route-summary { padding-top: 38px; } }
+
+/* Latest voyage screens: light canvas, pill actions, square editorial alerts.
+   The compliance progress card deliberately keeps its existing rules. */
+.button--secondary { min-height: 36px; border: 0; border-radius: 999px; background: #4b4b4b; color: #fff; padding: 0 18px; }
+.search [data-action="back"] { background: none; border: 0; padding-left: 0; color: var(--text-secondary); align-self: flex-start; font-size: 11px; }
+.search .form { max-width: 320px; }
+.card__actions { display: flex; margin-top: auto; }
+.card__actions .button--primary { width: 100%; justify-content: flex-start; }
+.sheet__context { margin-top: 14px; }
+.sheet__foot { display: none; }
+.route-summary { width: min(430px, calc(100vw - 2 * var(--gutter))); gap: 22px; padding: 32px 22px 22px; border-radius: 28px; }
+.route-summary__metrics { gap: 18px 22px; }
+.route-summary .metric__value { font-size: 20px; }
+.route-summary .metric dt { font: 13px/1.4 var(--font-mono); color: #555; margin-bottom: 4px; }
+.route-summary__eta .metric__value { font-size: 15px; white-space: nowrap; }
+.route-summary__wave { gap: 3px; }
+.route-summary__wave-title { font-size: 12px; }
+.route-summary__footer { justify-content: flex-end; }
+.route-summary__hide { top: 14px; right: 22px; }
+.route-summary__preview { min-width: 106px; height: 40px; font-size: 15px; }
+.route-summary__playback { align-items: center; }
+.playback-speed select { font-size: 14px; height: 36px; }
+
+.cargo-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; border: 1px solid #111; border-radius: 0; color: var(--text); background: var(--bg); overflow-y: auto; }
+.cargo-dialog::backdrop { background: rgba(250,250,250,.82); }
+.cargo-dialog form { display: flex; flex-direction: column; gap: 18px; }
+.cargo-dialog__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--hairline); padding-bottom: 18px; }
+.cargo-dialog__head .mono-label { margin: 8px 0 12px; }
+.cargo-dialog h2 { margin: 0; font: 400 24px/1.25 var(--font-display); letter-spacing: -.01em; }
+.dialog-close { flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 1px solid var(--hairline); color: var(--text-secondary); background: none; font: 26px/1 var(--font-ui); cursor: pointer; }
+.cargo-dialog__intro { margin: 0; color: #777; font-size: 13px; line-height: 1.6; }
+.cargo-dialog .field__file { height: auto; padding: 8px 12px; }
+.cargo-dialog .field__textarea { height: auto; padding: 12px; resize: vertical; min-height: 92px; }
+.cargo-dialog__upload:empty, .cargo-dialog .form-status:empty { display: none; }
+.cargo-dialog__upload { margin: -12px 0 0; }
+.cargo-dialog__skip { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--hairline); padding-top: 18px; }
+.cargo-dialog__skip input { margin: 0; accent-color: #123DFF; }
+.cargo-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.cargo-dialog :focus-visible { outline: 2px solid #123DFF; outline-offset: 2px; }
+
+/* Alert markers use severity, rather than suggesting every warning is safe. */
+.port-issue { display: inline-flex; align-items: center; gap: 7px; min-width: 0; height: auto; padding: 4px; border-radius: 0; background: transparent; color: #111; font: 11px/1.4 var(--font-mono); text-transform: uppercase; text-shadow: 0 1px 3px var(--bg); }
+.port-issue::before { content: ''; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 13px solid #aaa; }
+.port-issue[data-level="high"]::before { border-bottom-color: var(--hazard-severe); }
+.port-issue[data-level="mild"]::before { border-bottom-color: var(--hazard-high); }
+.port-issue:hover, .port-issue[aria-expanded="true"] { background: transparent; color: #123DFF; }
+.congestion-popup .mapboxgl-popup-tip { display: none; }
+.congestion-popup .mapboxgl-popup-content { width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; border: 1px solid #111; border-radius: 0; box-shadow: none; background: var(--bg); padding: 18px; }
+.congestion-popup .mapboxgl-popup-close-button { z-index: 2; top: 12px; right: 12px; width: 32px; height: 32px; border: 1px solid var(--hairline); color: #999; background: var(--bg); font: 24px/1 var(--font-ui); }
+.congestion-card > .congestion-card__eyebrow, .congestion-card > .congestion-card__title { display: none; }
+.congestion-card__issues { padding: 0; margin: 0; list-style: none; }
+.congestion-card__issues > li { padding: 0; border: 0; }
+.congestion-card__issue { margin: 0; }
+.congestion-card__issue > summary { position: relative; display: grid; gap: 6px; padding: 14px 26px 18px 0; font-size: 15px; line-height: 1.4; list-style: none; border: 0; border-bottom: 1px solid var(--hairline); cursor: pointer; }
+.congestion-card__issue > summary::-webkit-details-marker { display: none; }
+.congestion-card__issue > summary::after { display: none; }
+.congestion-card__issues > li:last-child summary { border-bottom: 0; }
+.port-alert__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 11px; text-transform: uppercase; }
+.port-alert__severity { display: inline-flex; align-items: center; gap: 7px; color: #111; }
+.port-alert__severity::before { content: ''; width: 8px; height: 8px; background: #999; }
+[data-level="high"] > summary .port-alert__severity::before, [data-level="high"] > .congestion-card__details .port-alert__severity::before { background: var(--hazard-severe); }
+[data-level="mild"] > summary .port-alert__severity::before, [data-level="mild"] > .congestion-card__details .port-alert__severity::before { background: var(--hazard-high); }
+.port-alert__title { color: #111; font-weight: 500; }
+.port-alert__arrow { position: absolute; right: 2px; top: 38px; color: #999; }
+.congestion-card.has-active-issue > .congestion-card__issues > li:has(details:not([open])) { display: none; }
+.congestion-card__issue[open] > summary { display: none; }
+.congestion-card__details { padding: 0; margin: 0; font: 13px/1.55 var(--font-ui); color: #111; }
+.port-alert__back { display: flex; align-items: center; gap: 10px; padding: 4px 0; margin: 2px 24px 18px 0; border: 0; background: none; font: 12px/1.4 var(--font-ui); color: #111; cursor: pointer; }
+.port-alert__detail-title { font: 400 21px/1.25 var(--font-display); margin: 8px 0 12px; }
+.congestion-card__summary { font-size: 13px; line-height: 1.55; margin: 0 0 16px; }
+.congestion-card__details .congestion-card__eyebrow { margin: 22px 0 8px; padding-top: 18px; border-top: 1px solid var(--hairline); font: 11px/1.5 var(--font-mono); color: #999; }
+.congestion-card__details .congestion-card__meta { color: #777; font-size: 11px; line-height: 1.6; }
+.congestion-card__source { display: block; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; margin: 8px 0; }
+@media (max-width: 760px) {
+  .cards { grid-template-columns: 1fr; }
+  .route-summary { width: min(430px, calc(100vw - 32px)); padding-top: 34px; }
+  .route-summary .metric__value { font-size: 17px; }
+  .route-summary__eta .metric__value { font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+  .route-summary__wave-title { font-size: 11px; }
+  .cargo-dialog { padding: 20px; }
+  .congestion-popup .mapboxgl-popup-content { padding: 16px; }
+  .port-alert__detail-title { font-size: 20px; }
+}
+
+/* Port panels follow their projected port and size to the available side. */
+.port-popup { z-index: 3; max-width: none; transform: none; }
+.port-popup[hidden] { display: none; }
+.port-popup .mapboxgl-popup-content { box-sizing: border-box; width: 100%; overscroll-behavior: contain; }
+.port-popup .mapboxgl-popup-close-button { top: 8px; right: 8px; width: 26px; height: 26px; font-size: 21px; }
+.port-popup .port-alert__meta { font-size: 10px; gap: 8px; }
+
+.port-alert__actions { display: flex; justify-content: flex-end; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+.port-alert__ask { min-width: 100px; }
+
+/* A bounded chat window: only the conversation scrolls, never the composer. */
+.compliance-chat { position: absolute; z-index: 8; right: var(--gutter); bottom: var(--gutter); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; width: min(390px, calc(100vw - 32px)); height: min(560px, calc(100dvh - var(--gutter) - var(--gutter) - 140px)); min-height: min(320px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); overflow: hidden; pointer-events: auto; border: 1px solid #d9dddf; border-radius: 20px; background: var(--bg); box-shadow: 0 12px 40px #172c4018; color: #111; font: 13px/1.55 var(--font-ui); }
+.compliance-chat__header { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #e9e9e9; }
+.compliance-chat__avatar { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; background: #123dff; border-radius: 50%; color: white; }
+.compliance-chat__header h2 { margin: 0; font: 600 15px/1.4 var(--font-ui); }
+.compliance-chat__header p { margin: 1px 0 0; font-size: 11px; color: #777; }
+.compliance-chat__close { margin-left: auto; width: 28px; height: 28px; flex-shrink: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #777; font: 24px/1 var(--font-ui); cursor: pointer; }
+.compliance-chat__close:hover { background: #eaeaea; }
+.compliance-chat__context { padding: 10px 18px; background: #f2f3f5; border-bottom: 1px solid #e9e9e9; }
+.compliance-chat__context .mono-label { font-size: 9px; color: #777; }
+.compliance-chat__context p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 2px 0 0; font-size: 12px; line-height: 1.4; }
+.compliance-chat__messages { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 14px; overflow-wrap: anywhere; scrollbar-width: thin; }
+.compliance-chat__message { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 18px; }
+.compliance-chat__actor { margin: 0 0 5px 4px; font-size: 10px; color: #888; }
+.compliance-chat__bubble { max-width: 100%; min-width: 0; padding: 12px 14px; border-radius: 14px 14px 14px 4px; background: #eff1f4; color: #222; }
+.compliance-chat__message--user { align-items: flex-end; }
+.compliance-chat__message--user .compliance-chat__bubble { max-width: 88%; border-radius: 14px 14px 4px 14px; background: #123dff; color: #fff; white-space: pre-wrap; }
+.compliance-chat__bubble > :first-child { margin-top: 0; }
+.compliance-chat__bubble > :last-child { margin-bottom: 0; }
+.compliance-chat__bubble p { margin: 0 0 10px; }
+.compliance-chat__bubble :is(h1,h2,h3,h4,h5,h6) { margin: 14px 0 8px; font: 600 14px/1.4 var(--font-ui); }
+.compliance-chat__bubble :is(ul,ol) { padding-left: 20px; margin: 8px 0 12px; }
+.compliance-chat__bubble li { margin: 5px 0; }
+.compliance-chat__bubble li p { margin-bottom: 5px; }
+.compliance-chat__bubble a { color: #123dff; text-decoration: underline; text-underline-offset: 2px; }
+.compliance-chat .rich-text a.citation-pill {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 25px; height: 22px;
+  margin: 0 2px; padding: 0 7px; box-sizing: border-box; border: 1px solid #123dff22;
+  border-radius: 999px; background: #123dff0c; color: #123dff; text-decoration: none;
+  font: 600 10px/1 var(--font-ui); white-space: nowrap; vertical-align: 1px;
+  transition: background .15s, border-color .15s;
+}
+.compliance-chat .rich-text a.citation-pill:hover { background: #123dff1c; border-color: #123dff66; }
+.compliance-chat .rich-text a.citation-pill:focus-visible { outline: 2px solid #123dff; outline-offset: 2px; }
+.compliance-chat__bubble pre { overflow-x: auto; padding: 10px; background: #e4e7ed; border-radius: 6px; white-space: pre; }
+.compliance-chat__bubble code { font: 11px/1.5 var(--font-mono); background: #e4e7ed; padding: 1px 3px; border-radius: 3px; }
+.compliance-chat__bubble pre code { padding: 0; }
+.compliance-chat__bubble blockquote { margin: 10px 0; padding-left: 10px; border-left: 2px solid #123dff55; color: #666; }
+.chat-table { max-width: 100%; overflow-x: auto; }
+.chat-table table { border-collapse: collapse; font-size: 11px; }
+.chat-table th, .chat-table td { padding: 6px 8px; border: 1px solid #d8dce2; text-align: left; min-width: 90px; }
+.chat-table th { background: #e4e7ed; }
+.compliance-chat__sources, .compliance-chat__issue-summary { max-width: 100%; margin: 8px 4px 0; font-size: 11px; color: #666; }
+.compliance-chat__sources summary, .compliance-chat__issue-summary > summary { cursor: pointer; }
+.compliance-chat__sources .congestion-card__source { display: block; margin: 6px 0; font-size: 11px; color: #123dff; }
+.compliance-chat__issue-summary > .compliance-chat__bubble { margin-top: 8px; font-size: 12px; }
+.compliance-chat__message[data-loading] .compliance-chat__bubble::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 7px; border: 1.5px solid #123dff30; border-top-color: #123dff; border-radius: 50%; vertical-align: -1px; animation: compliance-spin .8s linear infinite; }
+.compliance-chat__message[data-loading] .compliance-chat__bubble p { display: inline; }
+.compliance-chat__message[data-error] .compliance-chat__bubble { background: #fff0ed; }
+.compliance-chat__composer { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-top: 1px solid #e6e8eb; background: var(--bg); }
+.compliance-chat__composer textarea { width: 100%; min-height: 54px; max-height: 100px; resize: none; box-sizing: border-box; border: 1px solid #dce0e5; border-radius: 12px; padding: 10px 12px; background: white; color: #111; font: 13px/1.45 var(--font-ui); }
+.compliance-chat__composer textarea:focus { outline: 2px solid #123dff55; outline-offset: 1px; }
+.compliance-chat__composer-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.compliance-chat__composer-actions > span { font-size: 9px; line-height: 1.4; color: #999; }
+.compliance-chat__composer [type="submit"] { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 78px; height: 32px; border: 0; border-radius: 999px; background: #123dff; color: white; font: 500 12px/1 var(--font-ui); cursor: pointer; }
+.compliance-chat__composer [type="submit"]:disabled { opacity: .45; cursor: wait; }
+@media (max-width: 760px) { .compliance-chat { right: 16px; bottom: 16px; height: min(560px, calc(100dvh - 100px)); } }
+@media (prefers-reduced-motion: reduce) { .compliance-chat__message[data-loading] .compliance-chat__bubble::before { animation: none; } }
+/* One scroll container and one shared content edge for dividers and actions. */
+.port-popup .congestion-card { max-height: none; overflow: visible; padding: 0; }
+.port-popup .congestion-card__issue { border: 0; }
+.port-alert__actions { width: 100%; box-sizing: border-box; padding-left: 0; padding-right: 0; }
+.port-alert__ask { flex: 0 0 auto; margin: 0; }
+
+/* The same safe prose formatter is used in chat and expanded port findings. */
+.port-popup .rich-text { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.port-popup .rich-text p { margin: 0 0 10px; }
+.port-popup .rich-text > :first-child { margin-top: 0; }
+.port-popup .rich-text > :last-child { margin-bottom: 0; }
+.port-popup .rich-text :is(h1,h2,h3,h4,h5,h6) { margin: 14px 0 8px; font: 600 14px/1.4 var(--font-ui); }
+.port-popup .rich-text :is(ul,ol) { margin: 8px 0 12px; padding-left: 19px; }
+.port-popup .rich-text li { margin: 6px 0; }
+.port-popup .rich-text a { color: #123dff; text-decoration: underline; text-underline-offset: 2px; }
+.port-popup .rich-text code { padding: 1px 3px; border-radius: 3px; background: #eff1f4; font: 11px/1.5 var(--font-mono); }
+.port-popup .rich-text pre { max-width: 100%; overflow-x: auto; padding: 10px; background: #eff1f4; }
+.port-popup .rich-text pre code { padding: 0; white-space: pre; }
+.port-popup .rich-text blockquote { margin: 10px 0; padding-left: 10px; border-left: 2px solid #ddd; color: #666; }
+.port-popup .port-alert__status { display: inline-block; padding: 3px 8px; margin: 10px 0 0; border-radius: 999px; background: #eff1f4; font: 10px/1.5 var(--font-ui); }
+.port-alert__requirements { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; }
+.port-alert__requirements > li { margin: 7px 0; }
+.port-alert__sources { list-style: none; padding: 0; margin: 0; }
+.port-alert__sources > li { margin: 8px 0; }
+.port-alert__sources .congestion-card__source { margin: 0; }
+.port-popup .port-alert__title.rich-text, .port-popup .port-alert__detail-title.rich-text { overflow-wrap: break-word; }
+
+/* The checklist keeps the map research card intact and uses the same restrained palette. */
+.detail__head-actions { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+.detail__head-actions .button { font-size: 12px; padding: 10px 16px; }
+.voyage-checklist { width: min(820px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); padding: 0; border: 1px solid #111; color: var(--text); background: var(--bg); }
+.voyage-checklist[open] { display: flex; flex-direction: column; }
+.voyage-checklist::backdrop { background: #fafafad9; backdrop-filter: blur(3px); }
+.voyage-checklist__head, .voyage-checklist__footer { display: flex; flex-shrink: 0; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 26px; }
+.voyage-checklist__head { border-bottom: 1px solid var(--hairline); }
+.voyage-checklist__head .mono-label { font-size: 10px; margin: 0 0 8px; }
+.voyage-checklist h2 { font: 400 28px/1.2 var(--font-display); margin: 0; }
+.voyage-checklist__body { overflow-y: auto; overscroll-behavior: contain; padding: 8px 26px 24px; font: 13px/1.6 var(--font-ui); }
+.voyage-checklist__footer { border-top: 1px solid var(--hairline); font-size: 12px; }
+.voyage-checklist__footer > div { display: flex; gap: 8px; }
+.voyage-checklist .button { min-height: 36px; font-size: 12px; }
+.voyage-checklist button:disabled { opacity: .45; cursor: default; }
+.checklist-voyage { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+.checklist-note { color: #737373; font-size: 11px; line-height: 1.65; }
+.checklist-banner { padding: 12px 14px; border-left: 3px solid #b38257; background: #b3825710; }
+.checklist-section { margin-top: 26px; }
+.checklist-section h3 { font: 400 21px/1.3 var(--font-display); border-bottom: 1px solid var(--hairline); padding-bottom: 12px; }
+.checklist-item { padding: 16px 0; border-bottom: 1px solid var(--hairline); }
+.checklist-item__head { display: flex; align-items: flex-start; gap: 12px; }
+.checklist-item input[type=checkbox] { width: 17px; height: 17px; margin: 3px 0 0; accent-color: #123DFF; flex-shrink: 0; }
+.checklist-item details { min-width: 0; flex: 1; }
+.checklist-item summary { cursor: pointer; list-style: none; position: relative; padding-right: 24px; }
+.checklist-item summary::-webkit-details-marker { display: none; }
+.checklist-item summary::after { content: '+'; position: absolute; right: 0; top: 0; font-size: 20px; color: #123DFF; }
+.checklist-item details[open] > summary::after { content: '−'; }
+.checklist-item__title { display: block; font-size: 15px; font-weight: 500; }
+.checklist-item .mono-label { font-size: 10px; display: block; margin: 6px 0; }
+.checklist-action { font-size: 13px; margin-top: 10px; }
+.checklist-field { margin-top: 16px; }
+.checklist-field .rich-text { margin-top: 4px; }
+.checklist-ports { font: 11px/1.6 var(--font-mono); color: #123DFF; }
+.checklist-notes { display: block; font-size: 11px; color: #777; margin-top: 16px; }
+.checklist-notes textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 6px; resize: vertical; border: 1px solid var(--hairline); padding: 10px; background: transparent; color: var(--text); font: 12px/1.5 var(--font-ui); }
+.checklist-coverage { padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.checklist-coverage summary { cursor: pointer; }
+.checklist-loading { min-height: 160px; display: flex; align-items: center; gap: 12px; }
+.checklist-loading::before { content: ''; width: 15px; height: 15px; flex-shrink: 0; border: 2px solid #123dff33; border-top-color: #123DFF; border-radius: 50%; animation: checklist-spin 1s linear infinite; }
+@keyframes checklist-spin { to { transform: rotate(360deg); } }
+.voyage-checklist :focus-visible { outline: 2px solid #123DFF; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .checklist-loading::before { animation: none; } }
+@media (max-width: 760px) {
+  .detail__head-actions { flex-direction: column-reverse; align-items: flex-end; gap: 6px; }
+  .detail__head-actions .button { font-size: 10px; padding: 8px 12px; }
+  .voyage-checklist__head, .voyage-checklist__footer { padding: 16px; }
+  .voyage-checklist__body { padding: 4px 16px 16px; }
+  .voyage-checklist__footer { flex-wrap: wrap; }
+}
+
+.voyage-checklist__footer > div { flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+.voyage-checklist__footer { flex-wrap: wrap; }
+.voyage-checklist .checklist-error { margin: 12px 26px 0; flex-shrink: 0; font-size: 12px; line-height: 1.5; }
+.voyage-checklist .checklist-error[hidden], .checklist-download[hidden] { display: none; }
+.checklist-download { color: #123DFF; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Compare a candidate without replacing the selected voyage or its research. */
+.reroute-comparison { border-top: 1px solid #aaa; margin-top: 16px; padding-top: 12px; max-height: 32vh; overflow-y: auto; font-size: 12px; line-height: 1.5; }
+.reroute-comparison h3 { font-size: 16px; margin: 0 0 8px; }
+.reroute-legend { font-size: 11px; }
+.reroute-port-label { background: #FFEE00; color: #161600; padding: 5px 8px; border: 1px solid #6E6500; font: 11px monospace; }
+.transfer-estimate { margin-top: 12px; }
+.transfer-estimate__cost { font-weight: 600; }
+.transfer-estimate__assumptions { font-size: 11px; line-height: 1.5; }
+.transfer-estimate__assumptions summary { cursor: pointer; }
+
+.reroute-selector { display: flex; gap: 6px; margin-bottom: 12px; position: sticky; top: 0; background: #ddd; padding: 4px 0; z-index: 1; }
+.reroute-selector button[aria-pressed="true"] { background: #FFEE00; color: #171700; border-color: #6E6500; }
+.reroute-selector button[data-alternative="false"][aria-pressed="true"] { background: #FF00A1; color: white; border-color: #FF00A1; }
+
+/* Route switching reuses the calculated report; only the active view changes. */
+.route-summary { max-height: calc(100dvh - 170px); overflow-y: auto; grid-auto-rows: max-content; align-content: start; }
+.route-picker { display: flex; gap: 5px; padding-top: 6px; }
+.route-picker__option { flex: 1; min-width: 0; border: 1px solid #aaa; border-radius: 999px; padding: 8px 6px; background: transparent; color: #333; font: 500 12px/1.2 var(--font-ui); cursor: pointer; }
+.route-picker__option[aria-pressed="true"] { color: #fff; border-color: #123dff; background: #123dff; }
+.route-picker__option:focus-visible { outline: 2px solid #123dff; outline-offset: 2px; }
+.route-summary__selection { margin: -8px 0 0; color: #555; font: 11px/1.4 var(--font-mono); }

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import secrets
-from contextlib import asynccontextmanager
+from contextlib import aclosing, asynccontextmanager
 from threading import Event, Thread
 
 from fastapi import FastAPI, Query, Request, Response, UploadFile
@@ -9,9 +9,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pymongo.errors import PyMongoError
 from pypdf.errors import PyPdfError
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.background import BackgroundTask
 
+from service.checklist import ChecklistRequest, ChecklistExportRequest, generate as generate_checklist, export_snapshot
+from service.checklist_pdf import render_pdf
+from service.checklist_bundle import build_bundle
 from service.compliance import ComplianceService
-from service.compliance_models import ChatRequest, ChatResponse, VoyageAnalysisRequest
+from service.compliance_models import ChatRequest, ChatResponse, VoyageAnalysisRequest, VoyageDetailsRequest
 from service.config import settings
 from service.congestion import CongestionService
 from service.congestion_models import CongestionRequest, CongestionResponse
@@ -19,6 +23,7 @@ from service.data import Repository
 from service.documents import MAX_UPLOAD, extract_document
 from service.models import RouteError, RouteRequest, RouteResponse
 from service.routing import calculate
+from service.rerouting import RerouteRequest, preview_reroute
 
 
 @asynccontextmanager
@@ -68,6 +73,12 @@ async def port_congestion(body: CongestionRequest, request: Request):
     return await request.app.state.congestion.assess(body)
 
 
+@app.post('/routes/reroute')
+async def reroute_preview(body: RerouteRequest, request: Request):
+    return JSONResponse(await preview_reroute(body, request.app.state.repository,
+        request.app.state.congestion.onward), headers={'Cache-Control': 'no-store'})
+
+
 @app.post('/documents/extract')
 async def documents_extract(file: UploadFile):
     try:
@@ -83,8 +94,19 @@ async def documents_extract(file: UploadFile):
 @app.post('/voyages/analyse')
 async def analyse_voyage(body: VoyageAnalysisRequest, request: Request):
     async def events():
-        async for event in request.app.state.compliance.stream(body):
-            yield json.dumps(event, default=str, separators=(',', ':')) + '\n'
+        async with aclosing(request.app.state.compliance.stream(body)) as stream:
+            async for event in stream:
+                yield json.dumps(event, default=str, separators=(',', ':')) + '\n'
+    return StreamingResponse(events(), media_type='application/x-ndjson',
+        headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
+
+
+@app.post('/voyages/details')
+async def voyage_details(body: VoyageDetailsRequest, request: Request):
+    async def events():
+        async with aclosing(request.app.state.compliance.stream_details(body)) as stream:
+            async for event in stream:
+                yield json.dumps(event, default=str, separators=(',', ':')) + '\n'
     return StreamingResponse(events(), media_type='application/x-ndjson',
         headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
 
@@ -94,9 +116,57 @@ async def compliance_chat(body: ChatRequest, request: Request):
     return await request.app.state.compliance.chat(body)
 
 
+@app.post('/voyages/checklist')
+async def voyage_checklist(body: ChecklistRequest, request: Request):
+    result = await generate_checklist(request.app.state.compliance, body)
+    return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
+
+@app.post('/voyages/checklist/pdf')
+async def voyage_checklist_pdf(body: ChecklistExportRequest, request: Request):
+    snapshot = export_snapshot(request.app.state.compliance, body)
+    content = await asyncio.to_thread(render_pdf, snapshot, body.checked_item_ids, body.item_notes)
+    return Response(content, media_type='application/pdf', headers={
+        'Content-Disposition': 'attachment; filename="SmoothSail-voyage-checklist.pdf"',
+        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+
+
+@app.post('/voyages/checklist/bundle')
+async def voyage_checklist_bundle(body: ChecklistExportRequest, request: Request):
+    snapshot = export_snapshot(request.app.state.compliance, body)
+    archive = await build_bundle(snapshot, body.checked_item_ids, body.item_notes, request.app.state.compliance.store)
+    def chunks():
+        try:
+            while chunk := archive.read(256 * 1024): yield chunk
+        finally:
+            archive.close()
+    return StreamingResponse(chunks(), media_type='application/zip', background=BackgroundTask(archive.close), headers={
+        'Content-Disposition': 'attachment; filename="SmoothSail-voyage-package.zip"',
+        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+
+
 @app.get('/compliance/data-status')
 async def compliance_status(request: Request):
     return await asyncio.to_thread(request.app.state.compliance.store.status)
+
+
+@app.get('/compliance/documents/{file_id}/download')
+def download_compliance_document(file_id: str, request: Request):
+    stored = request.app.state.compliance.store.download_document(file_id)
+    if stored is None:
+        return JSONResponse(status_code=404, content={'error': {'code': 'document_not_found',
+            'message': 'The stored source document is not available.'}})
+    document, filename = stored
+    def chunks():
+        try:
+            while chunk := document.read(256 * 1024):
+                yield chunk
+        finally:
+            document.close()
+    return StreamingResponse(chunks(), media_type='application/octet-stream', headers={
+        'Content-Disposition': f'attachment; filename="{filename}"',
+        'Content-Length': str(document.length), 'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-store'})
 
 
 @app.post('/internal/refresh', include_in_schema=False)

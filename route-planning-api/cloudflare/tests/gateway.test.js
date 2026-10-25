@@ -6,6 +6,23 @@ const env = { ALLOWED_ORIGINS: '*' };
 const request = (path, init = {}) => new Request(`https://tideline.example${path}`, init);
 const unavailable = () => { throw new Error('should not reach the container'); };
 
+test('stored document attachments stream unchanged through the gateway with CORS', async () => {
+  const path = '/compliance/documents/0123456789abcdef01234567/download';
+  const response = await handleRequest(request(`/api${path}`), env, async forwarded => {
+    assert.equal(new URL(forwarded.url).pathname, path);
+    assert.equal(forwarded.headers.get('Accept'), 'application/octet-stream');
+    return new Response('%PDF-original', { headers: { 'Content-Disposition': 'attachment; filename="rules.pdf"',
+      'Content-Type': 'application/octet-stream', 'X-Content-Type-Options': 'nosniff' } });
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Access-Control-Allow-Origin'), '*');
+  assert.equal(response.headers.get('Content-Disposition'), 'attachment; filename="rules.pdf"');
+  assert.equal(await response.text(), '%PDF-original');
+  for (const path of ['/compliance/documents/invalid/download', '/compliance/documents/0123456789abcdef01234567/delete']) {
+    assert.equal((await handleRequest(request(path), env, unavailable)).status, 404);
+  }
+});
+
 test('congestion has the same public JSON/CORS contract as routes', async () => {
   const preflight = await handleRequest(request('/api/port-congestion', { method: 'OPTIONS', headers: {
     Origin: 'https://frontend.example', 'Access-Control-Request-Method': 'POST',
@@ -149,4 +166,64 @@ test('unsupported preflight headers and non-JSON inputs are rejected', async () 
   assert.equal(preflight.status, 400);
   const post = await handleRequest(request('/routes', { method: 'POST', body: '{}' }), env, unavailable);
   assert.equal(post.status, 415);
+});
+
+test('optional voyage details stream with CORS and retain the private analysis capability in the body', async t => {
+  t.mock.method(AbortSignal, 'timeout', () => { throw new Error('Research must use caller cancellation'); });
+  const input = { analysisId: 'session', contextToken: 'private', cargoText: 'Cargo', vessel: { imoNumber: '9876543' } };
+  const response = await handleRequest(request('/api/voyages/details', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: 'https://ui.example' }, body: JSON.stringify(input)
+  }), env, async forwarded => {
+    assert.equal(new URL(forwarded.url).pathname, '/voyages/details');
+    assert.equal(forwarded.headers.get('Accept'), 'application/x-ndjson');
+    assert.deepEqual(await forwarded.json(), input);
+    return new Response('{"type":"complete"}\n', { headers: { 'Content-Type': 'application/x-ndjson' } });
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Access-Control-Allow-Origin'), '*');
+  assert.match(await response.text(), /complete/);
+});
+
+test('checklist research and binary PDF export work across frontend origins', async () => {
+  for (const path of ['/voyages/checklist', '/voyages/checklist/pdf']) {
+    const binary = path.endsWith('/pdf');
+    const response = await handleRequest(request(path, { method: 'POST', headers: {
+      'Content-Type': 'application/json', Origin: 'https://other-frontend.example'
+    }, body: JSON.stringify({ analysisId: 'a', routeId: 'r', contextToken: 't', itemNotes: { a: 'x'.repeat(9000) } }) }), env,
+    async () => binary ? new Response('%PDF-checklist', { headers: { 'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="checklist.pdf"' } }) : Response.json({ id: 'checklist' }));
+    // PDF notes have a larger request budget; ordinary checklist generation remains bounded.
+    assert.equal(response.status, binary ? 200 : 413);
+    if (binary) {
+      assert.equal(response.headers.get('access-control-allow-origin'), '*');
+      assert.equal(response.headers.get('content-type'), 'application/pdf');
+      assert.equal(await response.text(), '%PDF-checklist');
+    }
+  }
+});
+
+test('checklist document packages stream binary ZIP attachments with CORS', async () => {
+  const response = await handleRequest(request('/api/voyages/checklist/bundle', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: 'https://frontend.example' }, body: JSON.stringify({ snapshot: 'x'.repeat(10000) })
+  }), env, async forwarded => {
+    assert.equal(new URL(forwarded.url).pathname, '/voyages/checklist/bundle');
+    return new Response(new Uint8Array([80, 75, 3, 4]), { headers: { 'Content-Type': 'application/zip',
+      'Content-Disposition': 'attachment; filename="voyage.zip"' } });
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('access-control-allow-origin'), '*');
+  assert.equal(response.headers.get('content-type'), 'application/zip');
+  assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], [80, 75, 3, 4]);
+});
+
+test('route-only reroute preview is allowed with cross-origin JSON requests', async () => {
+  const response = await handleRequest(request('/api/routes/reroute', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: 'https://frontend.example' },
+    body: JSON.stringify({ original: { origin: 'NLRTM', destination: 'FRLEH' }, affectedPortId: 'FRLEH', alternativePortId: 'DEHAM' })
+  }), env, async forwarded => {
+    assert.equal(new URL(forwarded.url).pathname, '/routes/reroute');
+    return Response.json({ complianceStatus: 'not_assessed' });
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Access-Control-Allow-Origin'), '*');
 });

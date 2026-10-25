@@ -6,7 +6,7 @@ export function issueLevel(assessment, now = Date.now()) {
       assessment.researchStatus !== 'completed' || !assessment.sources?.length ||
       !Number.isFinite(Date.parse(assessment.evidenceAsOf)) ||
       Date.parse(assessment.evidenceAsOf) > now ||
-      now - Date.parse(assessment.evidenceAsOf) > 72 * 3600_000 ||
+      now - Date.parse(assessment.evidenceAsOf) > Math.min(168, assessment.evidenceWindowHours || 72) * 3600_000 ||
       !(Date.parse(assessment.refreshAfter) > now)) return null;
   return assessment.level;
 }
@@ -14,7 +14,7 @@ export function issueLevel(assessment, now = Date.now()) {
 export function createCongestionLookup(fetcher, clock = Date.now) {
   const cache = new Map(), pending = new Map();
   return async (portIds) => {
-    const ids = [...new Set(portIds)].sort();
+    const ids = [...new Set(portIds)];
     if (!ids.length || ids.length > 2 || ids.some(id => !/^[A-Z]{2}[A-Z0-9]{3}$/.test(id))) return [];
     const key = ids.join(':');
     if (cache.get(key)?.until > clock()) return cache.get(key).assessments;

@@ -1,5 +1,5 @@
 const READ_PATHS = new Set(['/health', '/ports', '/ports/nearby', '/data-status', '/compliance/data-status', '/route-schema', '/docs', '/openapi.json']);
-const POST_PATHS = new Set(['/routes', '/port-congestion', '/voyages/analyse', '/documents/extract', '/compliance/chat']);
+const POST_PATHS = new Set(['/routes', '/routes/reroute', '/port-congestion', '/voyages/analyse', '/voyages/details', '/documents/extract', '/compliance/chat', '/voyages/checklist', '/voyages/checklist/pdf', '/voyages/checklist/bundle']);
 const MAX_BODY_BYTES = 8192;
 
 function error(code, message, status) {
@@ -26,7 +26,7 @@ function cors(response, origin, allowedOrigins) {
   }
   headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type');
-  headers.set('Access-Control-Expose-Headers', 'Server-Timing, Retry-After');
+  headers.set('Access-Control-Expose-Headers', 'Server-Timing, Retry-After, Content-Disposition');
   headers.set('Access-Control-Max-Age', '86400');
   return new Response(response.body, { status: response.status, headers });
 }
@@ -62,7 +62,8 @@ export async function handleRequest(request, env, forward) {
   }
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) url.pathname = url.pathname.slice(4);
-  const method = POST_PATHS.has(url.pathname) ? 'POST' : READ_PATHS.has(url.pathname) ? 'GET' : null;
+  const download = /^\/compliance\/documents\/[0-9a-f]{24}\/download$/.test(url.pathname);
+  const method = POST_PATHS.has(url.pathname) ? 'POST' : READ_PATHS.has(url.pathname) || download ? 'GET' : null;
   if (!method) return finish(error('not_found', 'Use /docs to see the route API.', 404));
   if (request.method === 'OPTIONS') {
     const requested = request.headers.get('Access-Control-Request-Method');
@@ -82,7 +83,7 @@ export async function handleRequest(request, env, forward) {
         return finish(error('unsupported_media_type', upload ? 'Send multipart/form-data.' : 'Send application/json.', 415));
       }
       const limit = upload ? 11 * 1024 * 1024 : url.pathname === '/compliance/chat' ? 16 * 1024 * 1024
-        : url.pathname === '/voyages/analyse' ? 1024 * 1024 : MAX_BODY_BYTES;
+        : ['/voyages/analyse', '/voyages/details'].includes(url.pathname) ? 2 * 1024 * 1024 : ['/voyages/checklist/pdf', '/voyages/checklist/bundle'].includes(url.pathname) ? 2 * 1024 * 1024 : MAX_BODY_BYTES;
       body = await limitedBody(request, limit);
       if (body === null) return finish(error('request_too_large', 'Input exceeds this endpoint’s size limit.', 413));
     }
@@ -90,8 +91,8 @@ export async function handleRequest(request, env, forward) {
     // Do not forward cookies, authorization or internal refresh headers.
     const response = await forward(new Request(url, {
       method, body,
-      headers: { Accept: url.pathname === '/voyages/analyse' ? 'application/x-ndjson' : 'application/json', ...(method === 'POST' ? { 'Content-Type': contentType } : {}) },
-      signal: ['/port-congestion', '/voyages/analyse', '/compliance/chat'].includes(url.pathname) ? request.signal
+      headers: { Accept: download ? 'application/octet-stream' : ['/voyages/analyse', '/voyages/details'].includes(url.pathname) ? 'application/x-ndjson' : 'application/json', ...(method === 'POST' ? { 'Content-Type': contentType } : {}) },
+      signal: ['/port-congestion', '/voyages/analyse', '/voyages/details', '/compliance/chat', '/voyages/checklist'].includes(url.pathname) ? request.signal
         : AbortSignal.any([request.signal, AbortSignal.timeout(180000)]),
     }));
     // The Containers SDK can return a plain-text 503 while provisioning.

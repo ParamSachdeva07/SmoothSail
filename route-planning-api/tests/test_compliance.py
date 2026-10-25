@@ -94,7 +94,7 @@ def test_all_specialists_launch_concurrently_and_share_the_same_context():
             await asyncio.wait_for(ready.wait(), 2)
             assert body['store'] is False
             assert body['generation_config']['thinking_level'] == 'low'
-            assert body['generation_config']['max_output_tokens'] == 4096
+            assert body['generation_config']['max_output_tokens'] == 3072
             assert any(t.get('type') == 'google_search' for t in body['tools'])
             assert any(t.get('name') == 'read_route_report' for t in body['tools'])
             return httpx.Response(200, json=interaction({'status': 'needs_input', 'summary': 'Needs data',
@@ -118,8 +118,10 @@ def test_function_tool_can_read_original_wave_values_and_return_to_model():
         if len(calls) == 1:
             return httpx.Response(200, json={'status': 'requires_action', 'steps': [{'type': 'function_call',
                 'name': 'read_route_report', 'id': 'call-1', 'arguments': {'path': '/waveGrid/values/0/0'}}]})
-        assert body['input'][-1]['call_id'] == 'call-1'
-        assert json.loads(body['input'][-1]['result'][0]['text'])['values'] == [1.2, 3.4]
+        assert 'tools' not in body
+        tool_result = next(step for step in body['input'] if step['type'] == 'function_result')
+        assert tool_result['call_id'] == 'call-1'
+        assert json.loads(tool_result['result'][0]['text'])['values'] == [1.2, 3.4]
         return httpx.Response(200, json=interaction({'status': 'needs_input', 'summary': 'Checked original grid',
             'findings': [], 'webEvidence': []}))
     runner = AgentRunner(config(), httpx.MockTransport(handler))
@@ -132,7 +134,7 @@ def test_research_budget_reserves_the_last_round_for_a_concise_answer():
     requests = []
     def handler(request):
         body = json.loads(request.content); requests.append(body)
-        if len(requests) < 3:
+        if len(requests) < 2:
             return httpx.Response(200, json={'status': 'requires_action', 'steps': [{'type': 'function_call',
                 'name': 'read_route_report', 'id': f'call-{len(requests)}', 'arguments': {'path': '/origin'}}]})
         assert 'tools' not in body
@@ -142,7 +144,7 @@ def test_research_budget_reserves_the_last_round_for_a_concise_answer():
     runner = AgentRunner(config(), httpx.MockTransport(handler))
     context = shared_context(report())
     result = asyncio.run(runner.assess('security', context, '{}', {}, {'costs': {}}))
-    assert result['status'] == 'needs_input' and len(requests) == 3
+    assert result['status'] == 'needs_input' and len(requests) == 2
     assert 'reason' not in result
 
 
@@ -296,7 +298,8 @@ def test_orchestrator_returns_routes_before_slow_agents_and_preserves_parallel_l
             async def assess(self, body, route_context=None):
                 if route_context is not None:
                     context = await route_context
-                    assert len(context['routeReport']['routes']) == 1
+                    assert len(context['report']['routes']) == 1
+                    assert 'routeReport' in context['brief']
                 return SimpleNamespace(assessments=[])
         service = ComplianceService(SimpleNamespace(settings=config()), config(), Congestion(), Runner())
         body = VoyageAnalysisRequest(route_request={'origin': 'NLRTM', 'destination': 'SGSIN'}, cargo_text='Full text')
@@ -319,3 +322,129 @@ def test_expired_chat_context_does_not_return_another_voyage():
     body = ChatRequest(analysis_id='missing', context_token='wrong', finding_id='unknown', question='Why?')
     result = asyncio.run(service.chat(body))
     assert result.status == 'unavailable' and 'expired' in result.answer
+
+
+def test_input_gates_skip_dependent_research_without_provider_calls():
+    requests = []
+    runner = AgentRunner(config(), httpx.MockTransport(lambda request: requests.append(request)))
+    value = report()
+    value['metadata']['complianceHandoff']['declaredContext'] = None
+    context = shared_context(value)
+    async def run():
+        for category in ['trade', 'sanctions', 'dangerous_goods']:
+            result = await runner.assess(category, context, '{}', {}, {})
+            assert result['status'] == 'needs_input' and result['findings'] == []
+            assert result['summary'].startswith('Not run:')
+    asyncio.run(run())
+    assert requests == []
+
+
+def test_optional_details_reuses_report_and_shares_manifest_and_imo_with_every_specialist():
+    from service.compliance_models import VoyageDetailsRequest
+    import time
+    observed = []
+    class Runner:
+        async def assess(self, category, context, shared, data, calculations):
+            observed.append((category, context, json.loads(shared)))
+            await asyncio.sleep(0)
+            return {'category': category, 'status': 'completed', 'findings': []}
+    value = report()
+    service = ComplianceService(SimpleNamespace(), config(), None, runner=Runner())
+    data = {'zones': [], 'evidence': [], 'versions': {}}
+    service.store.retrieve = lambda context: data.copy()
+    service.contexts['test'] = {'context': shared_context(value), 'data': data, 'token': 'private',
+        'expires': time.monotonic() + 100, 'findings': {}}
+    body = VoyageDetailsRequest(analysis_id='test', context_token='private', cargo_text='UN1993 cleaning liquids',
+        vessel={'imoNumber': '9876543'}, document_references=[{'id': 'd1', 'title': 'Manifest', 'text': 'UN1993'}])
+    async def run():
+        return [event async for event in service.stream_details(body)]
+    events = asyncio.run(run())
+    assert len(observed) == len(PROMPTS)
+    for category, context, brief in observed:
+        assert brief['cargoText'] == body.cargo_text
+        assert brief['suppliedVesselInformation']['imoNumber'] == '9876543'
+        assert context['routeReport']['waveGrid'] is value['waveGrid']
+        assert brief['documentReferences'][0]['id'] == 'd1'
+        assert 'waveGrid' not in brief['routeReport']
+    assert events[0]['type'] == 'context_ready' and events[-1]['type'] == 'complete'
+    assert all(e['type'] != 'route_report' for e in events)
+    assert value['metadata']['complianceHandoff']['declaredContext']['vessel']['imoNumber'] == '1234567'
+    body.context_token = 'wrong'
+    assert asyncio.run(run())[0]['type'] == 'error'
+    assert service.active == 0
+
+
+def test_parallel_reference_batch_finishes_with_evidence_and_gracefully_limits_extra_reads():
+    from threading import Barrier
+    from service.compliance_agents import ResearchOutput
+    barrier = Barrier(2, timeout=2)
+    seen, requests = [], []
+    def lookup(query):
+        if query in ('0', '1'):
+            barrier.wait()  # Sequential lookups would fail this rendezvous.
+        seen.append(query)
+        return [evidence() | {'id': 'source-' + query}]
+    def handler(request):
+        body = json.loads(request.content); requests.append(body)
+        assert body['generation_config']['thinking_level'] == 'low'
+        assert body['generation_config']['max_output_tokens'] == 8192  # Checklist override stays intact.
+        if len(requests) == 1:
+            return httpx.Response(200, json={'status': 'requires_action', 'steps': [
+                {'type': 'function_call', 'name': 'lookup_reference', 'id': 'call-' + str(i),
+                 'arguments': {'query': str(i)}} for i in range(5)]})
+        assert 'tools' not in body
+        results = [s for s in body['input'] if s['type'] == 'function_result']
+        assert [s['call_id'] for s in results] == ['call-' + str(i) for i in range(5)]
+        assert 'budget reached' in json.loads(results[-1]['result'][0]['text'])['error']
+        return httpx.Response(200, json=interaction({'status': 'needs_input', 'summary': 'Partial cited evidence',
+            'findings': [], 'webEvidence': []}))
+    runner = AgentRunner(config(), httpx.MockTransport(handler)); runner.reference_lookup = lookup
+    extra = {'evidence': []}
+    result, _ = asyncio.run(runner.invoke('Quick check', '{}', extra, ResearchOutput, max_output_tokens=8192))
+    assert result.status == 'needs_input' and len(requests) == 2
+    assert sorted(seen) == ['0', '1', '2', '3']
+    assert [e['id'] for e in extra['evidence']] == ['source-' + str(i) for i in range(4)]
+
+
+def test_chat_focuses_selected_route_and_rejects_an_unrelated_selection():
+    from service.compliance_models import ComplianceFinding
+    from service.compliance_agents import ChatResearchOutput
+    finding = ComplianceFinding(category='security', status='needs_input', title='Scope test',
+        explanation='Test finding', scope={'routeIds': ['r1'], 'portIds': ['NLRTM']})
+    body = ChatRequest(analysis_id='test', context_token='test', finding_id='test', question='Explain', route_id='r1', finding=finding)
+    runner = AgentRunner(config())
+    calls = []
+    async def invoke(prompt, brief, extra, schema, report):
+        calls.append(extra['selectedRouteId'])
+        return ChatResearchOutput(answer='No verified information.', evidence_ids=[], web_evidence=[]), set()
+    runner.invoke = invoke
+    async def run():
+        await runner.chat(body, shared_context(report()), {}, trusted_finding=True)
+        assert calls == ['r1']
+        invalid = body.model_copy(update={'route_id': 'another-voyage'})
+        result = await runner.chat(invalid, shared_context(report()), {}, trusted_finding=True)
+        assert result.status == 'unavailable' and len(calls) == 1
+    asyncio.run(run())
+
+
+def test_disconnect_during_cleanup_releases_analysis_slot(monkeypatch):
+    async def run():
+        class Congestion:
+            async def assess(self, *args, **kwargs):
+                await asyncio.Event().wait()
+        service = ComplianceService(SimpleNamespace(settings=config()), config(), Congestion())
+        body = VoyageAnalysisRequest(route_request={'origin': 'NLRTM', 'destination': 'SGSIN'})
+        events = service.stream(body, lambda *_: report())
+        assert (await anext(events))['type'] == 'started'
+        assert service.active == 1
+        original_gather = asyncio.gather
+        async def interrupted_cleanup(*tasks, **kwargs):
+            await original_gather(*tasks, **kwargs)
+            raise asyncio.CancelledError()
+        monkeypatch.setattr(asyncio, 'gather', interrupted_cleanup)
+        try:
+            await events.aclose()
+        except asyncio.CancelledError:
+            pass
+        assert service.active == 0
+    asyncio.run(run())

@@ -1,3 +1,7 @@
+import { enhanceAlertCard } from './alert-presentation.js';
+import { formattedText, sourceList } from './issue-content.js';
+export { evidenceLink } from './issue-content.js';
+import { CATEGORY_NAMES, readableInputLabel } from '../data/compliance.js';
 import { createCongestionCard } from './port-congestion.js';
 import { issueLevel } from '../data/congestion.js';
 
@@ -7,42 +11,43 @@ function node(tag, className, text) {
   return element;
 }
 
-export function evidenceLink(evidence) {
-  if (!evidence.url) return node('p', 'congestion-card__meta',
-    `${evidence.title}${evidence.pageOrSection ? ` · ${evidence.pageOrSection}` : ''}`);
-  try {
-    const url = new URL(evidence.url);
-    if (!['http:', 'https:'].includes(url.protocol)) return null;
-    const link = node('a', 'congestion-card__source', evidence.title || url.hostname);
-    link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
-    return link;
-  } catch { return null; }
-}
-
 export function findingDisclosure(finding, onLearnMore) {
   const details = node('details', 'congestion-card__issue');
   details.dataset.issueId = finding.id;
+  details.dataset.category = CATEGORY_NAMES[finding.category] || 'Voyage compliance';
   const needsReview = ['needs_input', 'unverified'].includes(finding.status);
   details.dataset.level = needsReview ? 'info' : finding.severity === 'red' ? 'high' : finding.severity === 'yellow' ? 'mild' : 'info';
   const summary = node('summary', 'congestion-card__level');
   summary.setAttribute('aria-label', finding.title);
   summary.append(node('span', 'congestion-dot'), document.createTextNode(finding.title));
   const body = node('div', 'congestion-card__details');
-  body.append(node('p', 'congestion-card__summary', finding.explanation));
+  body.append(formattedText('congestion-card__summary', finding.explanation, finding.evidence));
   const statusLabels = { needs_input: 'Needs details', unverified: 'Not verified', estimated: 'Estimated', confirmed: 'Confirmed' };
-  body.append(node('p', 'congestion-card__meta', statusLabels[finding.status] || finding.status));
-  if (finding.recommendedAction) body.append(node('p', '', finding.recommendedAction));
-  if (finding.cost) body.append(node('p', 'compliance-cost',
-    `${new Intl.NumberFormat('en-GB', { style: 'currency', currency: finding.cost.currency }).format(finding.cost.amount)} · ${finding.cost.basis.replaceAll('_', ' ')}`));
-  if (finding.cost?.assumptions?.length) body.append(node('p', 'congestion-card__meta', finding.cost.assumptions.join(' ')));
-  if (finding.missingInputs?.length) body.append(node('p', 'congestion-card__meta', `Needed: ${finding.missingInputs.join(', ')}`));
-  for (const evidence of finding.evidence ?? []) {
-    const link = evidenceLink(evidence); if (link) body.append(link);
+  body.append(node('p', 'congestion-card__meta port-alert__status', statusLabels[finding.status] || finding.status));
+  if (finding.recommendedAction) body.append(node('h4', 'congestion-card__eyebrow', 'Recommended action'),
+    formattedText('port-alert__recommendation', finding.recommendedAction, finding.evidence));
+  if (finding.cost) {
+    const basis = { vessel_voyage: 'Whole-vessel voyage', port_call: 'Port call', cargo_shipment: 'Cargo shipment', container_day: 'Container per day' };
+    body.append(node('h4', 'congestion-card__eyebrow', 'Estimated cost'), node('p', 'compliance-cost',
+      `${new Intl.NumberFormat('en-GB', { style: 'currency', currency: finding.cost.currency }).format(finding.cost.amount)} · ${basis[finding.cost.basis] || readableInputLabel(finding.cost.basis)}`));
   }
+  if (finding.cost?.assumptions?.length) {
+    const list = node('ul', 'port-alert__requirements');
+    for (const assumption of finding.cost.assumptions) { const item = node('li'); item.append(formattedText('', assumption)); list.append(item); }
+    body.append(list);
+  }
+  if (finding.missingInputs?.length) {
+    body.append(node('h4', 'congestion-card__eyebrow', 'Details needed'));
+    const list = node('ul', 'port-alert__requirements');
+    for (const value of finding.missingInputs) { const item = node('li'); item.append(formattedText('', readableInputLabel(value))); list.append(item); }
+    body.append(list);
+  }
+  if (finding.evidence?.length) body.append(node('h4', 'congestion-card__eyebrow', 'Sources'), sourceList(finding.evidence));
   if (onLearnMore) {
-    const button = node('button', 'congestion-card__reroute', 'Learn more');
+    const button = node('button', 'button button--primary port-alert__ask', 'Ask');
     button.type = 'button'; button.addEventListener('click', () => onLearnMore(finding));
-    body.append(button);
+    const actions = node('footer', 'port-alert__actions'); actions.append(button);
+    body.append(actions);
   }
   details.append(summary, body); return details;
 }
@@ -57,5 +62,5 @@ export function createPortIssuesCard(port, assessment, findings, onReroute, onLe
   for (const finding of findings) {
     const item = node('li'); item.append(findingDisclosure(finding, onLearnMore)); list.append(item);
   }
-  return card;
+  return enhanceAlertCard(card);
 }

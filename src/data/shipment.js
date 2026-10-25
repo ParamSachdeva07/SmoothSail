@@ -4,7 +4,7 @@ export const shipment = {
   originId: 'NLRTM',
   destinationId: 'SGSIN',
   departure: new Date().toISOString().slice(0, 10),
-  cargoText: '', documentReferences: [], imoNumber: ''
+  cargoText: '', manifestText: '', cargoNotes: '', documentReferences: [], imoNumber: ''
 };
 
 export function toRouteRequest(state = shipment, now = new Date()) {

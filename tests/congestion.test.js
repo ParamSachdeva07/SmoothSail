@@ -25,7 +25,7 @@ test('concurrent map visits share a request; results cache per voyage port pair 
     calls++;
     return { assessments: ids.map(portId => ({ ...assessment, portId })) };
   }, () => clock);
-  await Promise.all([lookup(['NLRTM', 'SGSIN']), lookup(['SGSIN', 'NLRTM'])]);
+  await Promise.all([lookup(['NLRTM', 'SGSIN']), lookup(['NLRTM', 'SGSIN'])]);
   assert.equal(calls, 1);
   await lookup(['NLRTM', 'SGSIN']);
   assert.equal(calls, 1);
@@ -83,4 +83,13 @@ test('research without a deadline still respects explicit caller cancellation', 
   const pending = client.getPortCongestion(['NLRTM'], { signal: controller.signal });
   controller.abort();
   await assert.rejects(pending, { name: 'AbortError' });
+});
+
+ test('recent weekly pressure respects the declared seven-day window and reversed transfers use separate cache entries', async () => {
+  assert.equal(issueLevel({ ...assessment, evidenceAsOf: '2026-10-20T18:00:00Z', evidenceWindowHours: 168 }, now), 'high');
+  assert.equal(issueLevel({ ...assessment, evidenceAsOf: '2026-10-16T18:00:00Z', evidenceWindowHours: 999 }, now), null);
+  const orders = [];
+  const lookup = createCongestionLookup(async ids => { orders.push(ids); return { assessments: ids.map(portId => ({ ...assessment, portId })) }; }, () => now);
+  await lookup(['NLRTM', 'FRLEH']); await lookup(['FRLEH', 'NLRTM']);
+  assert.deepEqual(orders, [['NLRTM', 'FRLEH'], ['FRLEH', 'NLRTM']]);
 });

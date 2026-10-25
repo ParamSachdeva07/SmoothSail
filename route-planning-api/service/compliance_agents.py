@@ -53,6 +53,15 @@ REFERENCE_TOOL = {'type': 'function', 'name': 'lookup_reference',
     'parameters': {'type': 'object', 'properties': {'query': {'type': 'string'}, 'sourceId': {'type': 'string'},
                    'limit': {'type': 'integer', 'minimum': 1, 'maximum': 8}}, 'required': ['query']}}
 
+QUICK_RESEARCH = '''Finish this task quickly with a single focused evidence pass.
+Use the supplied context and source passages immediately. If tools are necessary, batch up to four
+independent Mongo lookups or targeted route reads in the first turn. Use at most one focused web-search
+batch for material public facts; do not repeat or reformulate searches once useful evidence is found.
+Stop as soon as the essential conclusion has cited support. Do not broaden the investigation into
+related topics. Missing private voyage facts are missing inputs, not reasons for more searches.
+The next model turn must be the final schema answer using available evidence. Preserve citations and
+uncertainty; never guess a fact or label an unresolved check clear to finish sooner.'''
+
 BASE_PROMPT = '''You are a maritime compliance screening specialist. Return schema JSON only.
 You receive a COMPACT VOYAGE BRIEF covering every alternative: ports, dates, passages, cost/emissions,
 weather summary/coverage, assumptions, full cargo text and supplied/resolved vessel information.
@@ -184,23 +193,23 @@ class AgentRunner:
             pass
         return None
 
-    async def invoke(self, prompt, shared_json, extra, schema, report=None):
+    async def invoke(self, prompt, shared_json, extra, schema, report=None, max_output_tokens=3072):
         if not self.settings.gemini_api_key.get_secret_value():
             raise ValueError('not_configured')
         # Explicit guard after building the declared brief; no partial cargo input.
-        content = prompt + '\nCOMPLETE_SHARED_CONTEXT\n' + shared_json + '\nSPECIALIST_EVIDENCE\n' + json.dumps(extra, default=str)
+        content = prompt + '\n' + QUICK_RESEARCH + '\nCOMPLETE_SHARED_CONTEXT\n' + shared_json + '\nSPECIALIST_EVIDENCE\n' + json.dumps(extra, default=str)
         if len(content.encode()) > self.settings.compliance_max_context_bytes:
             raise ValueError('context_too_large')
         async with self.semaphore, httpx.AsyncClient(timeout=httpx.Timeout(30, read=None), transport=self.transport) as client:
             options = {'model': self.settings.gemini_model, 'store': False,
                     'tools': [{'type': 'google_search'}] + ([READ_REPORT_TOOL] if report is not None else [])
                         + ([REFERENCE_TOOL] if self.reference_lookup is not None else []),
-                    'generation_config': {'thinking_level': 'low', 'max_output_tokens': 4096},
+                    'generation_config': {'thinking_level': 'low', 'max_output_tokens': max_output_tokens},
                     'response_format': {'type': 'text', 'mime_type': 'application/json',
                                         'schema': provider_schema(schema)}}
             history = [{'type': 'user_input', 'content': [{'type': 'text', 'text': content}]}]
             citations = set()
-            for turn in range(3):
+            for turn in range(2):
                 now = time.monotonic()
                 while self.calls and self.calls[0] < now - 3600:
                     self.calls.popleft()
@@ -208,7 +217,7 @@ class AgentRunner:
                     raise ValueError('budget_limited')
                 self.calls.append(now)
                 turn_options = options
-                if turn == 2:
+                if turn == 1:
                     turn_options = {key: value for key, value in options.items() if key != 'tools'}
                     history.append({'type': 'user_input', 'content': [{'type': 'text', 'text':
                         'Research budget reached. Return the short schema result now using the evidence already '
@@ -225,23 +234,29 @@ class AgentRunner:
                 if not calls:
                     text, current = parse_interaction(data)
                     return schema.model_validate_json(text), citations | current
-                if turn == 2 or len(calls) > 8:
+                if turn == 1:
                     raise ValueError('Report-read tool budget exceeded.')
                 history.extend(steps)
-                for call in calls:
+                async def execute(index, call):
+                    if index >= 4:
+                        return {'error': 'Read-tool budget reached. Use available evidence and identify missing inputs.'}
                     args = call.get('arguments', {})
                     if isinstance(args, str):
                         args = json.loads(args)
                     if call.get('name') == 'read_route_report' and report is not None:
-                        result = read_report(report, **args)
-                    elif call.get('name') == 'lookup_reference' and self.reference_lookup:
+                        return read_report(report, **args)
+                    if call.get('name') == 'lookup_reference' and self.reference_lookup:
                         try:
-                            result = await asyncio.to_thread(self.reference_lookup, **args)
-                            extra.setdefault('evidence', []).extend(result)
+                            return await asyncio.to_thread(self.reference_lookup, **args)
                         except (ValueError, TypeError, PyMongoError):
-                            result = {'error': 'Reference lookup unavailable or invalid.'}
-                    else:
-                        result = {'error': 'Unknown tool.'}
+                            return {'error': 'Reference lookup unavailable or invalid.'}
+                    return {'error': 'Unknown tool.'}
+
+                # These tools only read data and are independent. Preserve provider call order in history.
+                results = await asyncio.gather(*(execute(index, call) for index, call in enumerate(calls)))
+                for call, result in zip(calls, results):
+                    if call.get('name') == 'lookup_reference' and isinstance(result, list):
+                        extra.setdefault('evidence', []).extend(result)
                     history.append({'type': 'function_result', 'name': call['name'], 'call_id': call['id'],
                                     'result': [{'type': 'text', 'text': json.dumps(result)}]})
             raise ValueError('No final response.')
@@ -282,9 +297,17 @@ class AgentRunner:
 
     async def assess(self, category, context, shared_json, data, calculations):
         started = time.monotonic()
-        if category == 'dangerous_goods' and not context.get('cargoText', '').strip() and not context.get('documentReferences'):
+        cargo = bool(context.get('cargoText', '').strip() or context.get('documentReferences'))
+        vessel = context.get('suppliedVesselInformation') or {}
+        has_imo = bool(vessel.get('imoNumber'))
+        has_parties = bool(context.get('suppliedParties'))
+        required = {'dangerous_goods': cargo, 'trade': cargo or has_imo,
+                    'sanctions': cargo or has_imo or has_parties}
+        if category in required and not required[category]:
             return {'category': category, 'status': 'needs_input', 'findings': [],
-                    'summary': 'Add a cargo list or document to screen dangerous goods.',
+                    'summary': {'dangerous_goods': 'Not run: add a cargo list or document to screen dangerous goods.',
+                        'trade': 'Not run: add cargo details or an IMO number for cargo tariffs or vessel fees.',
+                        'sanctions': 'Not run: add cargo, a vessel IMO or declared parties for specific sanctions checks.'}[category],
                     'seconds': 0, 'contextSha256': context['contextSha256']}
         evidence = [e for e in data.get('evidence', []) if e.get('category') == category]
         for reference in context.get('documentReferences', []):
@@ -293,7 +316,9 @@ class AgentRunner:
                 'retrievedAt': context['checkedAt'], 'authority': 'user_document'})
         extra = {'evidence': evidence, 'structuredData': {k: data.get(k, []) for k in (
             'entities', 'zones', 'rules', 'tariffs', 'fees', 'prices', 'vesselFacts', 'commodities', 'coverage')},
-            'pythonCalculations': calculations, 'approvedPublishers': OFFICIAL_DOMAINS[category]}
+            'pythonCalculations': calculations, 'approvedPublishers': OFFICIAL_DOMAINS[category],
+            'inputAvailability': {'cargoResearchEnabled': cargo, 'vesselIdentityResearchEnabled': has_imo,
+                'instruction': 'Only research cargo classification, goods restrictions and dangerous goods when cargoResearchEnabled. Only research a specific vessel registry, ownership or IMO sanctions when vesselIdentityResearchEnabled. Do not invent absent declarations or use the generic routing vessel as an identified ship.'}}
         extra['sourceVersions'] = data.get('versions', {})
         # Upload text is already in cargoText (with page offsets) or documentReferences.
         # Keep full passages in the verification registry, not twice in the prompt.
@@ -381,6 +406,8 @@ class AgentRunner:
 
     async def chat(self, body, context, data, *, trusted_finding=False):
         from service.compliance_models import ChatResponse
+        if body.route_id and (body.route_id not in {r['id'] for r in context['routeReport']['routes']} or body.route_id not in body.finding.scope.route_ids):
+            return ChatResponse(answer='This finding does not apply to the selected route.', evidence_ids=[], evidence=[], status='unavailable')
         registry = {e['id']: Evidence.model_validate({k: v for k, v in e.items() if k != 'category'})
                     for e in data.get('evidence', []) if e.get('category') == body.finding.category}
         registry.update({e.id: e for e in body.finding.evidence
@@ -388,11 +415,12 @@ class AgentRunner:
         prompt = BASE_PROMPT + '\nAnswer the user question about the selected finding in concise plain text. '
         prompt += 'Keep the answer under 160 words unless the user asks for detail. '
         prompt += 'Cite evidence with [source ID] markers. If unsupported, say what is missing. '
-        prompt += 'No new costs without a Python calculation. No automatic routing or rule changes.'
+        prompt += 'No new costs without a Python calculation. No automatic routing or rule changes. '
+        prompt += 'When selectedRouteId is provided, focus on that route; label comparisons with other routes explicitly.'
         try:
             evidence_rows = [e.model_dump(mode='json', by_alias=True) for e in registry.values()]
             output, citations = await self.invoke(prompt, json.dumps(direct_context(context), default=str), {
-                'finding': body.finding.model_dump(mode='json', by_alias=True),
+                'finding': body.finding.model_dump(mode='json', by_alias=True), 'selectedRouteId': body.route_id,
                 'question': body.question, 'history': [{'role': h.get('role'), 'content': str(h.get('content', ''))[:4000]}
                     for h in body.history if h.get('role') in ('user', 'assistant')],
                 'evidence': evidence_rows}, ChatResearchOutput,

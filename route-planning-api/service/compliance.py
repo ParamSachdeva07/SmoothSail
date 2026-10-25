@@ -41,6 +41,7 @@ class ComplianceService:
         self.runner = runner or AgentRunner(settings)
         if isinstance(self.runner, AgentRunner):
             self.runner.reference_lookup = self.store.search_references
+            if self.congestion is not None: self.congestion.runner = self.runner
         self.active = 0
         # Two short-lived browser contexts, solely for read tools and chat. Never written to Mongo.
         self.contexts = OrderedDict()
@@ -94,9 +95,9 @@ class ComplianceService:
             shared_json = json.dumps(direct_context(context), separators=(',', ':'), ensure_ascii=False)
             calculations = calculate_compliance(context, data)
             if not route_context.done():
-                route_context.set_result(direct_context(context))
+                route_context.set_result({'brief': direct_context(context), 'report': context['routeReport']})
             self.contexts[analysis_id] = {'context': context, 'data': data, 'token': context_token,
-                'findings': {}, 'expires': time.monotonic() + 1800}
+                'findings': {}, 'checks': {}, 'expires': time.monotonic() + 1800}
             while len(self.contexts) > 2:
                 self.contexts.popitem(last=False)
 
@@ -106,11 +107,17 @@ class ComplianceService:
             async def congestion_result():
                 response = await congestion
                 # Full common context is supplied to this final scoping stage too.
-                return {'category': 'congestion', 'status': 'completed' if any(
-                    a.level != 'unknown' for a in response.assessments) else 'unavailable',
-                    'summary': 'Current port reporting; not a forecast for voyage arrival.',
+                known = any(a.level != 'unknown' for a in response.assessments)
+                no_evidence = all(a.research_status == 'completed' for a in response.assessments) and not known
+                return {'category': 'congestion', 'status': 'completed' if known else 'unavailable',
+                    'reason': 'insufficient_recent_evidence' if no_evidence else None,
+                    'summary': 'The current lookup completed but found no sufficiently recent cited congestion evidence.'
+                        if no_evidence else 'Current port reporting; not a forecast for voyage arrival.',
+                    'coverageNotes': [f"{a.port_name or a.port_id}: " + (' '.join(a.quality_notes) or
+                        f"Research status: {a.research_status}.") for a in response.assessments],
                     'assessments': [a.model_dump(mode='json', by_alias=True) for a in response.assessments],
                     'findings': [], 'contextSha256': context['contextSha256']}
+
 
             pending = {asyncio.create_task(specialist(category)) for category in PROMPTS}
             pending.add(asyncio.create_task(congestion_result()))
@@ -128,7 +135,7 @@ class ComplianceService:
                 for task in done:
                     result = task.result()
                     if analysis_id in self.contexts:
-                        self.contexts[analysis_id]['findings'].update({f['id']: f for f in result.get('findings', [])})
+                        self.record_assessment(self.contexts[analysis_id], result)
                     yield {'type': 'assessment', **result}
             yield {'type': 'complete', 'analysisId': analysis_id, 'seconds': round(time.monotonic() - started, 3)}
         except asyncio.CancelledError:
@@ -142,8 +149,80 @@ class ComplianceService:
             for task in tasks:
                 if not task.done():
                     task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
+            # Release admission before cancellable cleanup: disconnect cancellation
+            # must never leak a slot and permanently reject subsequent voyages.
             self.active -= 1
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def stream_details(self, body):
+        """Research optional declarations against the retained report; never reroute or retransmit its wave grid."""
+        saved = self.contexts.get(body.analysis_id)
+        if not saved or saved['expires'] <= time.monotonic() or not secrets.compare_digest(saved['token'], body.context_token):
+            yield {'type': 'error', 'message': 'This voyage context expired. Calculate routes again.'}
+            return
+        if self.active >= self.settings.compliance_max_analyses or saved.get('updating'):
+            yield {'type': 'error', 'message': 'Another analysis is running. Please try again shortly.'}
+            return
+        saved['updating'] = True
+        self.active += 1
+        tasks = []
+        try:
+            # Copy declaration containers only. Geometry/forecast arrays remain shared read-only.
+            original = saved['context']['routeReport']
+            metadata = dict(original.get('metadata', {}))
+            handoff = dict(metadata.get('complianceHandoff', {}))
+            declared = dict(handoff.get('declaredContext') or {})
+            declared['vessel'] = body.vessel.model_dump(mode='json', by_alias=True) if body.vessel else None
+            handoff['declaredContext'] = declared
+            handoff['declarationStatus'] = 'user_provided_unverified' if body.vessel or body.cargo_text or body.document_references or declared.get('parties') else 'not_provided'
+            handoff['declarationsUsedForRouting'] = False
+            metadata['complianceHandoff'] = handoff
+            context = shared_context(original | {'metadata': metadata}, body.cargo_text, body.document_references)
+            try:
+                data = await asyncio.to_thread(self.store.retrieve, context)
+            except PyMongoError:
+                data = {'evidence': [], 'coverage': {'mongo': {'fresh': False}}}
+            # Reuse the geography work; only declared cargo/vessel retrieval changes.
+            data['zones'] = saved['data'].get('zones', [])
+            context['resolvedVesselInformation'] = data.get('vesselFacts', [])
+            context.pop('contextSha256', None)
+            shared = json.dumps(direct_context(context), separators=(',', ':'), ensure_ascii=False)
+            context['contextSha256'] = hashlib.sha256(shared.encode()).hexdigest()
+            shared = json.dumps(direct_context(context), separators=(',', ':'), ensure_ascii=False)
+            saved.update(context=context, data=data, expires=time.monotonic() + 1800)
+            saved['checks'] = {k: v for k, v in saved.get('checks', {}).items() if k == 'congestion'}
+            saved['findings'] = {}
+            calculations = calculate_compliance(context, data)
+            tasks = [asyncio.create_task(self.runner.assess(category, context, shared, data, calculations)) for category in PROMPTS]
+            yield {'type': 'context_ready', 'analysisId': body.analysis_id, 'contextToken': body.context_token,
+                   'contextSha256': context['contextSha256'], 'contextBytes': len(shared.encode())}
+            pending = set(tasks)
+            while pending:
+                done, pending = await asyncio.wait(pending, timeout=10, return_when=asyncio.FIRST_COMPLETED)
+                if not done:
+                    yield {'type': 'heartbeat', 'phase': 'compliance'}
+                for task in done:
+                    result = task.result()
+                    self.record_assessment(saved, result)
+                    yield {'type': 'assessment', **result}
+            yield {'type': 'complete', 'analysisId': body.analysis_id}
+        except (PyMongoError, ValueError, KeyError, TypeError, httpx.HTTPError):
+            yield {'type': 'error', 'message': 'Optional-detail research could not complete. Please try again.'}
+        finally:
+            for task in tasks:
+                if not task.done(): task.cancel()
+            saved['updating'] = False
+            self.active -= 1
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    @staticmethod
+    def record_assessment(saved, result):
+        category = result['category']
+        if category != 'congestion' and result.get('contextSha256') != saved['context']['contextSha256']:
+            return  # A previous cargo declaration finished after a newer research run.
+        saved.setdefault('checks', {})[category] = result
+        saved['findings'] = {key: value for key, value in saved['findings'].items() if value['category'] != category}
+        saved['findings'].update({f['id']: f for f in result.get('findings', [])})
 
     async def chat(self, body):
         if body.analysis_id:

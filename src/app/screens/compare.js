@@ -1,3 +1,6 @@
+import { requestCargoDetails } from '../cargo-intake.js';
+import { routePlanner } from '../../data/route-planning.js';
+import { shipment } from '../../data/shipment.js';
 import { icon } from '../icons.js';
 import { getReport, getRoutes, reportPort, escapeHtml as h, formatDuration, formatNm, formatUsd, formatNumber, coverageLabel } from '../../data/routes.js';
 import { formatEta } from '../../data/shipment.js';
@@ -21,9 +24,7 @@ export function createCompareScreen({ onBack, onViewRoute, onSelectRoute }) {
         <ul class="tags"><li class="tag tag--neutral">${h(coverageLabel(route))}</li><li class="tag tag--neutral">Compliance not assessed</li></ul>
         <div class="card__summary">${summary.map((line) => `<p>${h(line)}</p>`).join('')}</div>
         <div class="card__actions">
-          <button class="button button--quiet" type="button" data-action="info" disabled title="Route information is coming soon">${icon('info')}<span>Info</span></button>
-          <button class="button button--quiet" type="button" data-action="view">${icon('ship')}<span>View route</span></button>
-          <button class="button button--primary" type="button" data-action="select"><span>Select this route</span></button>
+          <button class="button button--primary" type="button" data-action="select">${icon('arrow-right')}<span>Select this route</span></button>
         </div>
       </article>`;
   }
@@ -35,19 +36,34 @@ export function createCompareScreen({ onBack, onViewRoute, onSelectRoute }) {
     element.innerHTML = `
       <div class="sheet">
         <header class="sheet__head"><div><h1 class="wordmark">SmoothSail</h1><p class="mono-label">${routes.length} route options</p></div>
-          <button class="button button--quiet" type="button" data-action="back">${icon('arrow-left')}<span>Change shipment</span></button></header>
+          <button class="button button--secondary" type="button" data-action="back">${icon('arrow-left')}<span>Change shipment</span></button></header>
         <p class="sheet__context mono-label">${h(origin.name)} (${h(origin.code)}) → ${h(destination.name)} (${h(destination.code)}) · departs ${h(formatEta(report?.departureTime))} · Generic container vessel</p>
         <div class="cards">${routes.map(card).join('')}</div>
-        <p class="sheet__foot mono-label">Whole-vessel planning estimates, not freight quotes · Fuel + vessel time + canal charges · Insurance, port charges and emissions allowances excluded · Shared paths may have different speeds</p>
+        <p class="form-status" data-role="intake-error" role="alert"></p>
       </div>`;
   }
-  element.addEventListener('click', (event) => {
+  let opening = false;
+  element.addEventListener('click', async (event) => {
     const button = event.target.closest('button[data-action]');
     if (!button || button.disabled) return;
     const id = button.closest('[data-route]')?.dataset.route;
     if (button.dataset.action === 'back') onBack?.();
-    if (button.dataset.action === 'view') onViewRoute?.(id);
-    if (button.dataset.action === 'select') onSelectRoute?.(id);
+    if (!['view', 'select'].includes(button.dataset.action) || opening) return;
+    opening = true;
+    try {
+      const details = await requestCargoDetails(element);
+      if (!details) return;
+      Object.assign(shipment, details);
+      const report = getReport();
+      // Start detail research without waiting for its results to open the map.
+      const pending = routePlanner.researchDetails(report, details);
+      pending.catch(error => {
+        const status = element.querySelector('[data-role="intake-error"]');
+        if (status) status.textContent = error.message;
+      });
+      if (button.dataset.action === 'view') onViewRoute?.(id);
+      else onSelectRoute?.(id);
+    } finally { opening = false; }
   });
   return { element, showGlobe: false, enter: render };
 }

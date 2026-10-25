@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import Field, HttpUrl, model_validator
 
-from service.models import Model, RouteRequest, RouteResponse
+from service.models import DeclaredVessel, Model, RouteRequest, RouteResponse
 
 CATEGORIES = ('security', 'environment', 'trade', 'sanctions', 'dangerous_goods', 'congestion')
 Category = Literal['security', 'environment', 'trade', 'sanctions', 'dangerous_goods', 'congestion']
@@ -23,11 +23,20 @@ class VoyageAnalysisRequest(Model):
     document_references: list[DocumentReference] = Field(default_factory=list, max_length=200)
 
 
+class VoyageDetailsRequest(Model):
+    analysis_id: str = Field(min_length=1, max_length=100)
+    context_token: str = Field(min_length=1, max_length=100)
+    cargo_text: str = Field(default='', max_length=200000)
+    document_references: list[DocumentReference] = Field(default_factory=list, max_length=200)
+    vessel: DeclaredVessel | None = None
+
+
 class Evidence(Model):
     id: str
     title: str
     url: HttpUrl | None = None
     document_id: str | None = None
+    download_path: str | None = Field(default=None, pattern=r'^/compliance/documents/[0-9a-f]{24}/download$')
     page_or_section: str | None = None
     supporting_passage: str = Field(default='', max_length=16000)
     retrieved_at: datetime
@@ -76,6 +85,7 @@ class SpecialistOutput(Model):
 
 
 class ChatRequest(Model):
+    route_id: str | None = Field(default=None, max_length=100)
     route_report: RouteResponse | None = None
     analysis_id: str | None = Field(default=None, max_length=100)
     context_token: str | None = Field(default=None, max_length=100)

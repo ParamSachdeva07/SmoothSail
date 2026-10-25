@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import gridfs
 import httpx
+from bson import ObjectId
 from pymongo import UpdateOne
 from pymongo.errors import OperationFailure
 from pypdf import PdfReader
@@ -66,6 +67,12 @@ def applicable(row, when):
 
 def normalize_name(value):
     return re.sub(r'[^a-z0-9]+', ' ', unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode().lower()).strip()
+
+
+def stored_document_link(source):
+    """Pin citations to the original stored bytes, even after a source refresh."""
+    file_id = str(source.get('gridFsFileId', ''))
+    return {'download_path': f'/compliance/documents/{file_id}/download'} if re.fullmatch(r'[0-9a-f]{24}', file_id) else {}
 
 
 class TextHTML(HTMLParser):
@@ -205,7 +212,7 @@ class ComplianceStore:
             return result
         report = context['routeReport']
         now = datetime.now(UTC)
-        sources = list(db.compliance_sources.find({}, {'gridFsFileId': 0}))
+        sources = list(db.compliance_sources.find({}))
         current = {s['_id']: s for s in sources if s.get('activeVersion') and utc(s['refreshAfter']) > now}
         active = [{ 'sourceId': s['_id'], 'snapshotId': s['activeVersion']} for s in current.values()]
         result['versions'] = {s['_id']: s['activeVersion'] for s in current.values()}
@@ -220,6 +227,7 @@ class ComplianceStore:
         for doc in documents:
                 source = current[doc['sourceId']]
                 result['evidence'].append(Evidence(id=doc['_id'], title=source['title'], url=source['url'],
+                    document_id=doc['_id'], **stored_document_link(source),
                     supporting_passage=doc['text'], page_or_section=doc.get('pageOrSection'),
                     retrieved_at=doc['retrievedAt'], source_version=doc['snapshotId'], authority='official'
                     if official_url(source['url']) else 'unverified').model_dump(mode='json', by_alias=True)
@@ -239,6 +247,7 @@ class ComplianceStore:
                 if doc['_id'] not in seen and doc['sourceId'] in current:
                     source = current[doc['sourceId']]
                     result['evidence'].append(Evidence(id=doc['_id'], title=source['title'], url=source['url'],
+                        document_id=doc['_id'], **stored_document_link(source),
                         supporting_passage=doc['text'], page_or_section=doc.get('pageOrSection'),
                         retrieved_at=doc['retrievedAt'], source_version=doc['snapshotId'], authority='official'
                         if official_url(source['url']) else 'unverified').model_dump(mode='json', by_alias=True)
@@ -261,6 +270,7 @@ class ComplianceStore:
                 entity['evidenceIds'] = [evidence_id]
                 entity['matchBasis'] = 'exact_imo' if imo in entity.get('imo', []) else 'name_candidate_requires_identity_review'
                 result['evidence'].append(Evidence(id=evidence_id, title=source['title'], url=source['url'],
+                    **stored_document_link(source),
                     supporting_passage=str({k: v for k, v in entity.items() if k not in ('normalizedNames', 'sourceFields')})[:12000],
                     retrieved_at=entity['retrievedAt'], source_version=entity['snapshotId'], authority='official'
                     if official_url(source['url']) else 'unverified').model_dump(mode='json', by_alias=True) | {'category': 'sanctions'})
@@ -307,9 +317,38 @@ class ComplianceStore:
         except OperationFailure:
             rows = list(db.compliance_documents.find(active | {'$text': {'$search': query}}).limit(limit))
         return [Evidence(id=row['_id'], title=sources[row['sourceId']]['title'], url=sources[row['sourceId']]['url'],
+            document_id=row['_id'], **stored_document_link(sources[row['sourceId']]),
             page_or_section=row.get('pageOrSection'), supporting_passage=row['text'], retrieved_at=row['retrievedAt'],
             source_version=row['snapshotId'], authority='official' if official_url(sources[row['sourceId']]['url'])
             else 'unverified').model_dump(mode='json', by_alias=True) for row in rows]
+
+    def download_document(self, file_id):
+        """Only the public compliance-reference bucket is downloadable; never uploads or other buckets."""
+        if not re.fullmatch(r'[0-9a-f]{24}', file_id):
+            return None
+        db = self.db()
+        if db is None:
+            return None
+        bucket = gridfs.GridFS(db, collection='compliance_files')
+        try:
+            document = bucket.get(ObjectId(file_id))
+        except gridfs.NoFile:
+            return None
+        metadata = document.metadata or {}
+        source = db.compliance_sources.find_one({'_id': metadata.get('sourceId')})
+        if not source:
+            document.close()
+            return None
+        prefix = document.read(512)
+        document.seek(0)
+        suffix = urlsplit(metadata.get('url', '')).path.rsplit('.', 1)[-1].lower()
+        suffix = suffix if suffix in ('pdf', 'html', 'htm', 'csv', 'json', 'xml', 'txt', 'zip', 'docx', 'xlsx') else 'txt'
+        if prefix.startswith(b'%PDF'):
+            suffix = 'pdf'
+        elif b'<html' in prefix.lower() or b'<!doctype html' in prefix.lower():
+            suffix = 'html'
+        title = re.sub(r'[^A-Za-z0-9._-]+', '-', source['title']).strip('.-')[:100] or 'reference'
+        return document, f'{title}-{file_id[-8:]}.{suffix}'
 
     def status(self):
         db = self.db()
