@@ -13,4 +13,4 @@ COPY data/portwatch_mappings.json ./data/portwatch_mappings.json
 RUN useradd --uid 10001 --create-home app && mkdir -p /app/data/cache && chown -R app:app /app/data
 USER app
 EXPOSE 8080
-CMD ["uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log", "--limit-concurrency", "8"]
+CMD ["uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log", "--timeout-graceful-shutdown", "600"]

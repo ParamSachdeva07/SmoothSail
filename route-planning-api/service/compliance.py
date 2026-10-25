@@ -48,7 +48,7 @@ class ComplianceService:
             self.runner.reference_lookup = self.store.search_references
             if self.congestion is not None: self.congestion.runner = self.runner
         self.active = 0
-        # Two short-lived browser contexts, solely for read tools and chat. Never written to Mongo.
+        # Short-lived browser contexts for read tools and chat. Never written to Mongo.
         self.contexts = OrderedDict()
         self.preview_reports = OrderedDict()
 
@@ -71,9 +71,6 @@ class ComplianceService:
         return report
 
     async def stream(self, body, calculate_routes=None):
-        if self.active >= self.settings.compliance_max_analyses:
-            yield {'type': 'error', 'code': 'busy', 'message': 'Another analysis is running. Please try again shortly.'}
-            return
         self.active += 1
         tasks = []
         started = time.monotonic()
@@ -130,7 +127,10 @@ class ComplianceService:
                 route_context.set_result({'brief': direct_context(context), 'report': context['routeReport']})
             self.contexts[analysis_id] = {'context': context, 'data': data, 'token': context_token,
                 'findings': {}, 'checks': {}, 'expires': time.monotonic() + 1800}
-            while len(self.contexts) > 2:
+            for key, saved in list(self.contexts.items()):
+                if saved['expires'] <= time.monotonic():
+                    self.contexts.pop(key, None)
+            while len(self.contexts) > 16:
                 self.contexts.popitem(last=False)
 
             async def specialist(category):
@@ -193,8 +193,8 @@ class ComplianceService:
         if not saved or saved['expires'] <= time.monotonic() or not secrets.compare_digest(saved['token'], body.context_token):
             yield {'type': 'error', 'message': 'This voyage context expired. Calculate routes again.'}
             return
-        if self.active >= self.settings.compliance_max_analyses or saved.get('updating'):
-            yield {'type': 'error', 'message': 'Another analysis is running. Please try again shortly.'}
+        if saved.get('updating'):
+            yield {'type': 'error', 'message': 'This voyage is already updating its details. Please try again shortly.'}
             return
         saved['updating'] = True
         self.active += 1

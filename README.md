@@ -96,7 +96,7 @@ Each specialist gets at most **two model turns**. In the first turn it can call 
 - A sanctions-list match is shown as *estimated*, never *confirmed*. A name match alone does not prove a voyage is prohibited.
 - If a check fails, it is reported as unavailable. A failed check never counts as clearance.
 
-Built-in limits keep cost and load under control: 6 concurrent model calls, 60 model calls per hour and 2 analyses at a time.
+Model research retains its cost controls: 6 concurrent model calls and 60 model calls per hour. Route analyses no longer have a separate two-request admission gate; the single container's available CPU and memory still determine practical throughput.
 
 ---
 

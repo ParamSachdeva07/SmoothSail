@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     congestion_calls_per_hour: int = Field(default=20, ge=0, le=1000)
     compliance_calls_per_hour: int = Field(default=60, ge=0, le=10000)
     compliance_concurrency: int = Field(default=6, ge=1, le=12)
-    compliance_max_analyses: int = Field(default=2, ge=1, le=10)
     compliance_max_context_bytes: int = Field(default=3000000, ge=10000, le=16000000)
 
     def connection_uri(self):

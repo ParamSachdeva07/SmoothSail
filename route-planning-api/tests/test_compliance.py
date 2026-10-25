@@ -465,3 +465,23 @@ def test_disconnect_during_cleanup_releases_analysis_slot(monkeypatch):
             pass
         assert service.active == 0
     asyncio.run(run())
+
+
+def test_more_than_two_voyages_can_start_without_an_admission_error():
+    async def run():
+        class Congestion:
+            async def assess(self, *args, **kwargs):
+                await asyncio.Event().wait()
+
+        service = ComplianceService(SimpleNamespace(settings=config()), config(), Congestion())
+        body = VoyageAnalysisRequest(route_request={'origin': 'NLRTM', 'destination': 'SGSIN'})
+        streams = [service.stream(body, lambda *_: report()) for _ in range(3)]
+        try:
+            started = await asyncio.gather(*(anext(stream) for stream in streams))
+            assert all(event['type'] == 'started' for event in started)
+            assert service.active == 3
+        finally:
+            await asyncio.gather(*(stream.aclose() for stream in streams))
+        assert service.active == 0
+
+    asyncio.run(run())
