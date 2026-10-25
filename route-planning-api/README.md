@@ -2,6 +2,8 @@
 
 See [COMPLIANCE.md](COMPLIANCE.md) for parallel cargo/voyage screening, Atlas reference ingestion, streaming results and cited follow-up chat.
 
+For a local presentation, set `VITE_DEMO_RESEARCH=true` in the frontend's ignored `.env.local` and search **Le Havre (FRLEH) → Singapore (SGSIN)**. The development frontend then asks `/voyages/analyse` for the bundled, clearly labelled synthetic findings in `service/demo_research.py`. Upload `SMOOTHSAIL cargo manifest mock.pdf` and enter IMO `9912340` in the optional-details form to see findings based on those inputs. The mock manifest names Shanghai → Rotterdam and says its fictional vessel has no assigned IMO, so the demo flags both conflicts. Only the exact FRLEH → SGSIN pair accepts `demoResearch: true`; route calculation, ETA, cost, wave forecasts and `/routes/reroute` remain live. The demo has no verified port conditions, cites the uploaded PDF only as a user document, and is never ingested into MongoDB or requested in production builds. Remove the setting to resume live research for the same pair.
+
 This directory contains the Python service and Cloudflare gateway. The current Vite/Mapbox frontend lives in the repository root; the previous Next.js prototype is not included. Run every backend command below from `route-planning-api/`. Production datasets are retrieved from the configured Atlas database or imported using the scripts. Git includes the Natural Earth fallback land mask needed to run demo mode and its tests, plus small planning references; large production masks, forecasts and source archives are excluded.
 
 A Python maritime route comparison API and MongoDB for reference data and environmental snapshots. Enter two ports and receive **fastest, cheapest and lowest-CO₂ options in one response**. User inputs and calculated voyages are not persisted.
@@ -111,6 +113,7 @@ The service performs the calculation within one request. It has no job queue, ro
 | Source | What is used | Where it is stored | What it changes |
 |---|---|---|---|
 | [UNECE UN/LOCODE](https://unlocode.unece.org/publications/) | Location code, name, country and coordinates; the importer uses the function field to filter port entries | Mongo `ports`; source ZIP in `data/raw/` | Port search and endpoint identity. Only records with a supported approach mapping can be routed. |
+| [NGA World Port Index via OCHA](https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0) | Independently named harbour positions, matched by country and reviewed name to UN/LOCODE | Download snapshot in ignored `data/raw/`; match ID, offset and route check in Mongo `ports.accessValidation` | Helps verify new port identities before snapping them to the existing sea network. It does not supply sailing paths or precise berth entrances. |
 | Project approach mappings | Approximate offshore access coordinate and matching graph node for each supported port | `data/access_points.json`, copied into each applicable `ports` record during import | The actual start/end of the calculated voyage and ETA. These are not berth or pilotage plans. |
 | [Eurostat SeaRoute](https://github.com/eurostat/searoute) | Nodes, connecting sea polylines, distances and passage tags from the canonical 5 km network | Mongo `routing_nodes`, `routing_edges`, `data_imports`; checksummed local graph cache | The available geographic paths. The service searches this network rather than drawing a straight line between cities. |
 | [GSHHG 2.3.7](https://github.com/GenericMappingTools/gshhg-gmt/releases/tag/2.3.7) | High-resolution L1 land polygons | Runtime source in Mongo `reference_files` GridFS, selected by `planning_versions`; replaceable disk cache; seed data in `data/geography/` | Rejects ordinary sea edges intersecting land. It provides no depths or under-keel-clearance information. |
@@ -152,7 +155,7 @@ Mongo stores queryable records and binary source/forecast files. It does not run
 
 | Collection / bucket | Important fields or contents | Written by | Read for |
 |---|---|---|---|
-| `ports` | `locode`, `name`, `country`, GeoJSON `location`, `supported`, `accessPoint`, `routingNodeId`, `importVersion`, optional `portwatchId` | Static importer; PortWatch mapping refresh | Port search, endpoint resolution and report context |
+| `ports` | `locode`, `name`, `country`, GeoJSON `location`, `supported`, `accessPoint`, `routingNodeId`, `importVersion`, optional `portwatchId` and `accessValidation` | Static importer, reviewed expansion; PortWatch mapping refresh | Port search, endpoint resolution and report context |
 | `routing_nodes` | `graphVersion`, `nodeId`, GeoJSON `location` | Static importer | Building the in-memory graph for the active version |
 | `routing_edges` | `graphVersion`, `edgeId`, `from`, `to`, GeoJSON `geometry`, `distanceNm`, `passageIds`, `bidirectional` | Static importer | Graph connections, route geometry and passage evidence |
 | `data_imports` | Per-import counts, parser version and archive checksums; `_id: "active_graph"` stores `graphVersion` and `graphSha256` | Static importer | Selecting/verifying the active network and documenting provenance |
@@ -191,6 +194,14 @@ In Mongo mode, **Atlas is the runtime source of truth** for vessel assumptions, 
 Only a new reference version loads its land mask. A changed reference version also rebuilds the screened graph, so updated land/canal rules cannot leave stale edges in memory. Missing or corrupt Mongo references fail explicitly instead of switching to local defaults. The local files remain useful for publishing, offline demo mode and standalone validation scripts.
 
 Forecast arrays and the graph are cached on disk and in memory to avoid database reads at every waypoint. User declarations, vessel overrides and completed route reports are request-local; there are no user, saved-profile, voyage-history or route-plan collections. The UI can export a report without saving it to Mongo.
+
+### Expanding supported ports
+
+The catalogue contains many more UN/LOCODE records than the routing graph can safely serve. `python -m scripts.expand_ports --download-wpi --env-file /path/to/.env` retrieves an [OCHA-hosted World Port Index snapshot](https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0) and writes a review report under `reports/`; it does not change the supported set. Each candidate needs one country/name match within 25 nautical miles of its catalogue location, a land-screened SeaRoute node within 15 nautical miles of the WPI position in the main connected component, and three complete route options to an already supported reference port. Review the report, then rerun with `--apply` to write validated mappings to `data/access_points.json` and the matching Mongo `ports` documents. The source snapshot is ignored by Git; the mapped node and provenance are retained.
+
+These points are approximate offshore approaches, not berth positions or navigational clearance certificates. Rejected ports remain searchable only as unsupported catalogue records and are not returned by `/ports`. To serve important ports beyond the current network's coastal reach, evaluate a more detailed sea graph and repeat the same land, canal, endpoint and route validations before activation. Check the source's reuse terms before deploying new WPI-derived mappings commercially.
+
+[auto-sea-way](https://github.com/auto-sea-way/asw) is a candidate for that separate graph evaluation, but its own documentation says the graph has no depth data and can route larger vessels through shallow water. Its planet graph also needs roughly 1.5 GB on disk and a 4 GB server. It has not been substituted into the container-vessel planner; the existing SeaRoute graph, canal rules and cost/weather models remain in force.
 
 ## Atlas features used
 

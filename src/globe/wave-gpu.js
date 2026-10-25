@@ -4,8 +4,9 @@ const vertex = `#version 300 es
 in vec2 a_position;
 in vec2 a_uv;
 uniform mat4 u_matrix;
+uniform float u_world;
 out vec2 v_uv;
-void main() { v_uv = a_uv; gl_Position = u_matrix * vec4(a_position, 0.0, 1.0); }`;
+void main() { v_uv = a_uv; gl_Position = u_matrix * vec4(a_position + vec2(u_world, 0.0), 0.0, 1.0); }`;
 const fragment = `#version 300 es
 precision highp float;
 uniform sampler2D u_a;
@@ -33,7 +34,7 @@ export function createWaveGpuLayer(grid, onError = () => {}) {
     program = gl.createProgram(); gl.attachShader(program, vs); gl.attachShader(program, fs); gl.linkProgram(program);
     gl.deleteShader(vs); gl.deleteShader(fs);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('Wave shader linking failed');
-    uniforms = Object.fromEntries(['u_matrix', 'u_a', 'u_b', 'u_mix'].map(name => [name, gl.getUniformLocation(program, name)]));
+    uniforms = Object.fromEntries(['u_matrix', 'u_world', 'u_a', 'u_b', 'u_mix'].map(name => [name, gl.getUniformLocation(program, name)]));
     const previousVao = gl.getParameter(gl.VERTEX_ARRAY_BINDING), previousBuffer = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
     vao = gl.createVertexArray(); gl.bindVertexArray(vao);
     buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -91,7 +92,13 @@ export function createWaveGpuLayer(grid, onError = () => {}) {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texture(pair.a));
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texture(pair.b));
       gl.uniform1i(uniforms.u_a, 0); gl.uniform1i(uniforms.u_b, 1); gl.uniform1f(uniforms.u_mix, pair.mix);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      const bounds = map.getBounds();
+      const first = Math.floor((bounds.getWest() + 180) / 360);
+      const last = Math.floor((bounds.getEast() + 180) / 360);
+      for (let world = first; world <= last; world++) {
+        gl.uniform1f(uniforms.u_world, world);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
       gl.bindVertexArray(previousVao);
     },
     onRemove() {

@@ -1,9 +1,8 @@
 import { api } from '../../api/client.js';
 import { rerouteRequest } from '../../data/reroute.js';
-import { transportEstimate } from '../../globe/transport-estimate.js';
 import { icon } from '../icons.js';
 import { createFlatMap } from '../../globe/flatmap.js';
-import { getReport, getRoutes, findRoute, reportPort, formatDuration, formatNm, formatUsd, formatNumber } from '../../data/routes.js';
+import { getReport, getRoutes, findRoute, presentRoute, reportPort, formatDuration, formatNm, formatUsd, formatNumber } from '../../data/routes.js';
 import { formatEta } from '../../data/shipment.js';
 import { validWaveGrid } from '../../globe/waves.js';
 import { routePlanner } from '../../data/route-planning.js';
@@ -25,7 +24,13 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
       <div class="detail__middle" aria-hidden="true"></div>
       <button class="route-summary__show" type="button" data-action="toggle-summary" aria-expanded="false" hidden>Show</button>
       <div class="route-summary" aria-label="Route summary">
-        <button class="route-summary__hide" type="button" data-action="toggle-summary" aria-expanded="true">Hide</button>
+        <div class="route-summary__head">
+          <div class="route-tabs" role="group" aria-label="Select displayed route" hidden>
+            <button class="route-tabs__option" type="button" data-alternative="false" aria-pressed="true">Original route</button>
+            <button class="route-tabs__option" type="button" data-alternative="true" aria-pressed="false">Alternative route</button>
+          </div>
+          <button class="route-summary__hide" type="button" data-action="toggle-summary" aria-expanded="true">Hide</button>
+        </div>
         <div class="route-picker" role="group" aria-label="Choose route option"></div>
         <p class="route-summary__selection" data-role="route-selection" aria-live="polite"></p>
         <dl class="route-summary__metrics">
@@ -40,7 +45,6 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
             <div class="wave-scale__labels"><span>0</span><span>2</span><span>4</span><span>6+ m</span></div>
           </div>
         </dl>
-        <section class="reroute-comparison" aria-label="Alternative route comparison" hidden></section>
         <div class="route-summary__footer">
           <div class="route-summary__playback">
             <label class="playback-speed" data-role="playback-speed" hidden>
@@ -62,37 +66,59 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
         <dl data-role="compliance-checks"></dl>
       </div>
     </details>`;
-  let flat = null, rerouteController = null, alternativePreview = null, alternativeSelected = false;
-  const alternativePanel = element.querySelector('.reroute-comparison');
+  let flat = null, rerouteController = null, alternativeResearchController = null;
+  let alternativePreview = null, alternativeSelected = false, alternativeRouteId = null, alternativeResearch = null;
+  const routeTabs = element.querySelector('.route-tabs');
+  for (const tab of routeTabs.querySelectorAll('[data-alternative]')) tab.addEventListener('click', () => selectPreview(tab.dataset.alternative === 'true'));
+  function updateRouteTabs() {
+    routeTabs.hidden = !alternativePreview;
+    for (const tab of routeTabs.querySelectorAll('[data-alternative]')) tab.setAttribute('aria-pressed', String((tab.dataset.alternative === 'true') === alternativeSelected));
+  }
+  const alternativeRoutes = () => (alternativePreview?.routes ?? (alternativePreview?.route ? [alternativePreview.route] : [])).map(presentRoute);
+  const selectedAlternativeRoute = () => alternativeRoutes().find(route => route.id === alternativeRouteId) ?? alternativeRoutes()[0];
+  function researchAlternative() {
+    if (!alternativePreview || alternativeResearch?.pending) return;
+    alternativeResearchController?.abort();
+    const controller = new AbortController(); alternativeResearchController = controller;
+    const original = routePlanner.getState(getReport());
+    const input = { ...original?.routeInput, origin: alternativePreview.origin, destination: alternativePreview.destination,
+      departureTime: alternativePreview.departureTime };
+    if (original?.imoNumber) input.complianceContext = { ...input.complianceContext,
+      vessel: { ...input.complianceContext?.vessel, imoNumber: original.imoNumber } };
+    alternativeResearch = { pending: true, checks: {}, findings: [], congestion: [], error: null, complete: false };
+    updateCompliance(original ?? { checks: {}, findings: [] });
+    api.analyseVoyage({ routeRequest: input, previewReportId: alternativePreview.reportId,
+      cargoText: original?.cargoText ?? '',
+      documentReferences: original?.documentReferences ?? [] }, { signal: controller.signal, onEvent(event) {
+      if (controller.signal.aborted || !alternativeResearch) return;
+      if (event.type === 'assessment') {
+        alternativeResearch.checks[event.category] = event;
+        alternativeResearch.findings = Object.values(alternativeResearch.checks).flatMap(check => check.findings ?? []);
+        if (event.category === 'congestion') alternativeResearch.congestion = event.assessments ?? [];
+      }
+      if (event.type === 'complete') { alternativeResearch.pending = false; alternativeResearch.complete = true; }
+      if (event.type === 'error') { alternativeResearch.pending = false; alternativeResearch.error = event.message; }
+      updateCompliance(original ?? { checks: {}, findings: [] });
+    }}).catch(error => {
+      if (controller.signal.aborted || !alternativeResearch) return;
+      alternativeResearch.pending = false; alternativeResearch.error = error.message;
+      updateCompliance(original ?? { checks: {}, findings: [] });
+    });
+  }
   async function onReroute(change) {
     const report = getReport(), route = findRoute(getSelectedRouteId());
     const input = rerouteRequest(report, route, change, routePlanner.getState(report)?.routeInput);
     rerouteController?.abort(); const controller = new AbortController(); rerouteController = controller;
-    alternativePanel.hidden = false; alternativePanel.textContent = 'Calculating alternative route…';
+    const selection = element.querySelector('[data-role="route-selection"]'); selection.textContent = 'Calculating alternative route…';
     try {
       const preview = await api.previewReroute(input, { signal: controller.signal });
       if (controller.signal.aborted) return;
-      alternativePreview = preview;
+      alternativeResearchController?.abort(); alternativeResearch = null;
+      alternativePreview = preview; alternativeRouteId = preview.route.id;
       await flat?.setReroutePreview(preview);
-      alternativePanel.replaceChildren();
-      const selector = document.createElement('div'); selector.className = 'reroute-selector'; selector.setAttribute('role', 'group'); selector.setAttribute('aria-label', 'Select displayed route');
-      for (const [label, isAlternative] of [['Original route', false], ['Alternative route', true]]) {
-        const button = document.createElement('button'); button.type = 'button'; button.className = 'button button--quiet';
-        button.textContent = label; button.dataset.alternative = String(isAlternative);
-        button.addEventListener('click', () => selectPreview(isAlternative)); selector.append(button);
-      }
-      const title = document.createElement('h3'); title.textContent = `Alternative via ${change.alternativePort.name}`;
-      const legend = document.createElement('p'); legend.className = 'reroute-legend';
-      legend.textContent = 'Pink · original   Yellow · alternative   Dashed · road transfer';
-      const sea = document.createElement('p');
-      sea.textContent = `${formatDuration(preview.route.durationHours)} · ${formatNm(preview.route.distanceNm)} · ${formatUsd(preview.route.cost?.totalUsd)} whole-vessel sea cost`;
-      const note = document.createElement('p'); note.className = 'congestion-card__meta'; note.textContent = preview.notice;
-      const remove = document.createElement('button'); remove.className = 'button button--quiet'; remove.type = 'button'; remove.textContent = 'Remove alternative';
-      remove.addEventListener('click', () => { selectPreview(false); alternativePreview = null; flat?.setReroutePreview(null); alternativePanel.hidden = true; });
-      alternativePanel.append(selector, title, legend, sea, transportEstimate(preview.onwardTransport), note, remove);
       selectPreview(true);
     } catch (error) {
-      if (rerouteController === controller) { alternativePanel.textContent = error.name === 'AbortError' ? '' : error.message; alternativePanel.hidden = error.name === 'AbortError'; }
+      if (rerouteController === controller && error.name !== 'AbortError') selection.textContent = error.message;
       throw error;
     }
   }
@@ -108,27 +134,32 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
   };
   function selectPreview(alternative) {
     alternativeSelected = alternative && Boolean(alternativePreview);
-    const route = alternativeSelected ? alternativePreview.route : findRoute(getSelectedRouteId());
-    showMetrics(route); updateRoutePicker(); flat?.selectReroute(alternativeSelected); chat.close(); checklist.close();
-    for (const button of alternativePanel.querySelectorAll('[data-alternative]')) button.setAttribute('aria-pressed', String((button.dataset.alternative === 'true') === alternativeSelected));
+    const route = alternativeSelected ? selectedAlternativeRoute() : findRoute(getSelectedRouteId());
+    showMetrics(route); updateRoutePicker();
+    if (alternativeSelected) flat?.setReroutePreview({ ...alternativePreview, route });
+    flat?.selectReroute(alternativeSelected); chat.close(); checklist.close();
+    updateRouteTabs();
     const state = routePlanner.getState(getReport());
     if (state) { updateCompliance(state); flat?.setPortCongestion(alternativeSelected ? [] : state.congestion); }
   }
   function updateCompliance(state) {
-    if (alternativeSelected) {
+    if (alternativeSelected && !alternativeResearch) {
       element.querySelector('[data-action="checklist"]').disabled = true;
       element.querySelector('[data-role="compliance-count"]').textContent = 'Not assessed';
       const checks = element.querySelector('[data-role="compliance-checks"]'); checks.replaceChildren();
       const note = document.createElement('p'); note.className = 'congestion-card__meta';
       note.textContent = 'This alternative has not undergone voyage compliance research. Select the original route to see its completed checks and checklist.';
-      checks.append(note); flat?.setComplianceFindings([]); return;
+      const research = document.createElement('button'); research.className = 'button button--primary'; research.type = 'button';
+      research.textContent = 'Research alternative compliance'; research.addEventListener('click', researchAlternative);
+      checks.append(note, research); flat?.setComplianceFindings([]); return;
     }
-    element.querySelector('[data-action="checklist"]').disabled = !state.context || state.detailsPending;
-    const count = Object.keys(state.checks).length;
+    const activeState = alternativeSelected ? alternativeResearch : state;
+    element.querySelector('[data-action="checklist"]').disabled = alternativeSelected || !state.context || state.detailsPending;
+    const count = Object.keys(activeState.checks).length;
     element.querySelector('[data-role="compliance-count"]').textContent = `${count} / ${COMPLIANCE_CATEGORIES.length}`;
     const checks = element.querySelector('[data-role="compliance-checks"]'); checks.replaceChildren();
     for (const category of COMPLIANCE_CATEGORIES) {
-      const check = categoryProgress(state, category);
+      const check = categoryProgress(activeState, category);
       const row = document.createElement('div'); row.className = 'compliance-progress__row'; row.dataset.phase = check.phase;
       row.title = check.description;
       const name = document.createElement('dt'); name.textContent = check.name;
@@ -136,14 +167,16 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
       const indicator = document.createElement('span'); indicator.className = 'compliance-progress__indicator'; indicator.setAttribute('aria-hidden', 'true');
       if (check.phase === 'done') {
         indicator.innerHTML = icon('check', 12);
-        status.title = 'Research complete. Open the port issues to read findings.';
+        status.title = activeState.checks[category]?.demo
+          ? 'Synthetic demo data. Open the port issues to read illustrative findings.'
+          : 'Research complete. Open the port issues to read findings.';
         status.append(indicator);
       } else {
         status.append(indicator, document.createTextNode(check.label));
       }
       row.append(name, status); checks.append(row);
     }
-    flat?.setComplianceFindings(state.findings);
+    flat?.setComplianceFindings(activeState.findings);
   }
   const waveScale = element.querySelector('[data-role="summary-wave-scale"]');
   function updateWaveState({ status, held, validAt }) {
@@ -180,11 +213,12 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
   });
   function updateRoutePicker() {
     const picker = element.querySelector('.route-picker'); picker.replaceChildren();
-    for (const route of getRoutes()) {
+    for (const route of alternativeSelected ? alternativeRoutes() : getRoutes()) {
       const button = document.createElement('button'); button.type = 'button';
       button.textContent = route.label; button.className = 'route-picker__option';
-      button.setAttribute('aria-pressed', String(!alternativeSelected && route.id === getSelectedRouteId()));
+      button.setAttribute('aria-pressed', String(route.id === (alternativeSelected ? selectedAlternativeRoute()?.id : getSelectedRouteId())));
       button.addEventListener('click', () => {
+        if (alternativeSelected) { alternativeRouteId = route.id; selectPreview(true); return; }
         if (route.id === getSelectedRouteId()) { selectPreview(false); return; }
         onSelectRoute(route.id); chat.close(); checklist.close(); render(route, true);
       });
@@ -202,8 +236,8 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
   }
   function render(route, preserveAlternative = false) {
     rerouteController?.abort(); alternativeSelected = false;
-    if (!preserveAlternative) { alternativePanel.hidden = true; alternativePreview = null; }
-    for (const button of alternativePanel.querySelectorAll('[data-alternative]')) button.setAttribute('aria-pressed', String(button.dataset.alternative === 'false'));
+    if (!preserveAlternative) { alternativeResearchController?.abort(); alternativeResearch = null; alternativePreview = null; }
+    updateRouteTabs();
     updateRoutePicker();
     const report = getReport();
     const origin = reportPort(report, 'origin');
@@ -244,6 +278,6 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
       const route = findRoute(getSelectedRouteId());
       if (route) render(route);
     },
-    leave() { rerouteController?.abort(); congestionRevision++; unsubscribe(); chat.close(); checklist.close(); flat?.setActive(false); }
+    leave() { rerouteController?.abort(); alternativeResearchController?.abort(); congestionRevision++; unsubscribe(); chat.close(); checklist.close(); flat?.setActive(false); }
   };
 }

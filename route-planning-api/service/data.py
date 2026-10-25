@@ -168,6 +168,22 @@ class Repository:
         record = self.database().ports.find_one({'locode': locode, 'supported': True}, {'location': 1}) or {}
         return record.get('location', {}).get('coordinates')
 
+    def port_road_anchor(self, locode):
+        """Use a verified port gate when available; otherwise provide search context only.
+
+        UN/LOCODE locations may be city centres and must not become road endpoints.
+        """
+        if self.settings.tideline_mode == 'demo':
+            return None
+        record = self.database().ports.find_one({'locode': locode, 'supported': True},
+            {'name': 1, 'country': 1, 'location': 1, 'landAccessPoint': 1}) or {}
+        if not record:
+            return None
+        return {'name': record.get('name'), 'country': record.get('country'),
+            'catalogueCoordinates': record.get('location', {}).get('coordinates'),
+            'coordinates': (record.get('landAccessPoint') or {}).get('coordinates'),
+            'source': 'verified_port_access' if record.get('landAccessPoint') else None}
+
     def load_graph(self):
         if self.settings.tideline_mode == 'mongo' and active_references() is None:
             with self.planning_context():

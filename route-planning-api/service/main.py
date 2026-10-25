@@ -8,7 +8,7 @@ from fastapi import FastAPI, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pymongo.errors import PyMongoError
 from pypdf.errors import PyPdfError
-from starlette.middleware.gzip import GZipMiddleware
+from service.streaming import ResearchAwareGZipMiddleware
 from starlette.background import BackgroundTask
 
 from service.checklist import ChecklistRequest, ChecklistExportRequest, generate as generate_checklist, export_snapshot
@@ -59,7 +59,7 @@ async def lifespan(app):
 
 app = FastAPI(title='Tideline', version='0.1.0', lifespan=lifespan)
 # Forecast frames compress well; keep global coastal detail affordable to send.
-app.add_middleware(GZipMiddleware, minimum_size=2048, compresslevel=1)
+app.add_middleware(ResearchAwareGZipMiddleware, minimum_size=2048, compresslevel=1)
 
 
 @app.get('/route-schema')
@@ -76,7 +76,8 @@ async def port_congestion(body: CongestionRequest, request: Request):
 @app.post('/routes/reroute')
 async def reroute_preview(body: RerouteRequest, request: Request):
     return JSONResponse(await preview_reroute(body, request.app.state.repository,
-        request.app.state.congestion.onward), headers={'Cache-Control': 'no-store'})
+        request.app.state.congestion.onward, cache_report=request.app.state.compliance.cache_preview),
+        headers={'Cache-Control': 'no-store'})
 
 
 @app.post('/documents/extract')

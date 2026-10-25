@@ -19,6 +19,12 @@ test('only fresh, supported mild/high results produce an issue badge', () => {
   assert.equal(issueLevel(null, now), null);
 });
 
+test('explicit demo congestion displays without pretending to have current sources', () => {
+  const demo = { ...assessment, demo: true, sources: [], evidenceAsOf: null };
+  assert.equal(issueLevel(demo, now), 'high');
+  assert.equal(issueLevel({ ...demo, demo: false }, now), null);
+});
+
 test('concurrent map visits share a request; results cache per voyage port pair until expiry', async () => {
   let calls = 0, clock = now;
   const lookup = createCongestionLookup(async ids => {

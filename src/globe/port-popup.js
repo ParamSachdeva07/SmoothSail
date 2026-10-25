@@ -1,3 +1,4 @@
+import { nearestWorldLongitude } from './map-navigation.js';
 /** Keep a port-anchored panel inside the map; the roomier side wins. */
 export function portPopupPlacement({ x, y, width, height, naturalHeight, preferredWidth = 360, margin = 16 }) {
   const panelWidth = Math.max(0, Math.min(preferredWidth, width - margin * 2));
@@ -26,7 +27,7 @@ export function createPortPopup({ map, container, coordinates, card, label, onCl
   function position() {
     frame = null;
     if (removed) return;
-    const { x, y } = map.project(coordinates);
+    const { x, y } = map.project([nearestWorldLongitude(coordinates[0], map.getCenter().lng), coordinates[1]]);
     const width = container.clientWidth, height = container.clientHeight;
     element.hidden = x < 0 || x > width || y < 0 || y > height;
     const placement = portPopupPlacement({ x, y, width, height, naturalHeight: content.scrollHeight + 2 });

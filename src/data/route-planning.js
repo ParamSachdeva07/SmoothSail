@@ -1,5 +1,9 @@
 import { api } from '../api/client.js';
 
+export function useDemoResearch(input, enabled = import.meta.env?.DEV && import.meta.env?.VITE_DEMO_RESEARCH === 'true') {
+  return Boolean(enabled && input.origin === 'FRLEH' && input.destination === 'SGSIN');
+}
+
 function notifyResearch(state) {
   for (const listener of state.listeners) {
     try { listener(state); }
@@ -47,7 +51,8 @@ export function createAnalysisPlanner(analyse, researchDetails) {
       return new Promise((resolve, reject) => {
         const abort = () => controller.abort();
         signal?.addEventListener('abort', abort, { once: true });
-        analyse({ routeRequest: input, cargoText, documentReferences }, { signal: controller.signal,
+        analyse({ routeRequest: input, cargoText, documentReferences,
+          demoResearch: useDemoResearch(input) }, { signal: controller.signal,
           onEvent(event) {
             if (controller.signal.aborted) return;
             if (event.type === 'route_report') {
@@ -89,7 +94,7 @@ export function createAnalysisPlanner(analyse, researchDetails) {
       detailController?.abort();
       const controller = new AbortController(); detailController = controller;
       state.detailsVersion++; const version = state.detailsVersion;
-      state.cargoText = cargoText; state.documentReferences = documentReferences;
+      state.cargoText = cargoText; state.documentReferences = documentReferences; state.imoNumber = imoNumber;
       state.detailsPending = true; state.complete = false; state.error = null;
       for (const category of ['security', 'environment', 'trade', 'sanctions', 'dangerous_goods']) delete state.checks[category];
       const publish = () => {

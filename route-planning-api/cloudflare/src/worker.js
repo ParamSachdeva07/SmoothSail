@@ -15,6 +15,7 @@ export class TidelineContainer extends Container {
     AUTO_REFRESH_FORECASTS: 'false',
     ROUTE_TIMEOUT_SECONDS: '90',
     GEMINI_API_KEY: this.env.GEMINI_API_KEY || '',
+    TINYFISH_API_KEY: this.env.TINYFISH_API_KEY || '',
     GEMINI_MODEL: 'gemini-4-argon',
     CONGESTION_CALLS_PER_HOUR: this.env.CONGESTION_CALLS_PER_HOUR || '20',
     COMPLIANCE_CALLS_PER_HOUR: this.env.COMPLIANCE_CALLS_PER_HOUR || '60',

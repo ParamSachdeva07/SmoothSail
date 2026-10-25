@@ -149,7 +149,7 @@ def test_provider_request_is_one_bounded_grounded_argon_call():
         body = json.loads(request.content)
         calls.append(body)
         assert body['model'] == 'gemini-4-argon'
-        assert body['tools'] == [{'type': 'google_search'}]
+        assert [tool['name'] for tool in body['tools']] == ['research_web']
         assert body['generation_config']['thinking_level'] == 'low'
         assert body['generation_config']['max_output_tokens'] == 3072
         assert body['response_format']['mime_type'] == 'application/json'

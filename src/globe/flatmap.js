@@ -1,3 +1,4 @@
+import { latitudeWithinCoverage } from './map-navigation.js';
 // Quiet Mapbox Light basemap for the selected route; the landing globe stays dotted.
 import mapboxgl from 'mapbox-gl';
 import { SETTINGS, cssToken, cssDurationMs } from '../settings.js';
@@ -33,8 +34,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     // Keep the map and forecast canvas in the same projection so coastal
     // samples and vector hazard contours remain geographically aligned.
     projection: 'mercator', center: [55, 24], zoom: 1.1, minZoom: 0, maxZoom: 8,
-    maxBounds: coverageBounds,
-    pitch: 0, bearing: 0, attributionControl: true, renderWorldCopies: false, fadeDuration: 0
+    pitch: 0, bearing: 0, attributionControl: true, renderWorldCopies: true, fadeDuration: 0
   });
   map.dragRotate.disable();
   map.touchZoomRotate.disableRotation();
@@ -64,7 +64,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
       }
       if (layer.type === 'symbol') {
         map.setPaintProperty(layer.id, 'text-color', cssToken('--map-label', '#8A959A'));
-        map.setPaintProperty(layer.id, 'text-halo-color', background);
+        map.setPaintProperty(layer.id, 'text-halo-width', 0);
       }
     }
     for (const [id, color, width] of [
@@ -118,7 +118,13 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     resolve();
   }));
   let latestRoute = null, reroutePreview = null;
-  let alternativeMarker = null;
+  let alternativeMarker = null, rerouteSelected = false;
+  // Only the active route's endpoint label is shown: the replaced port or its alternative, never both.
+  function showRerouteLabels() {
+    const endpoints = reroutePreview ? [reroutePreview.origin, reroutePreview.destination] : null;
+    portMarkers.forEach((marker, code) => { marker.element.hidden = Boolean(rerouteSelected && endpoints && !endpoints.includes(code)); });
+    if (alternativeMarker) alternativeMarker.getElement().hidden = !rerouteSelected;
+  }
   let revision = 0;
   const markers = [];
   const portMarkers = new Map();
@@ -145,25 +151,37 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     rows.forEach((row, id) => { if (!retained.has(id)) row.remove(); });
     previous.dataset.level = next.dataset.level ?? '';
     previous.querySelector('.congestion-card__eyebrow').textContent = next.querySelector('.congestion-card__eyebrow').textContent;
-    previous.classList.toggle('has-active-issue', Boolean(previous.querySelector('details[open]')));
+    previous.classList.toggle('has-active-issue', Boolean(previous.querySelector('details.congestion-card__issue[open]')));
     congestionPopup.update();
   }
   function showCongestion(port, assessment, button) {
-    const wasOpen = button.getAttribute('aria-expanded') === 'true';
+    const wasOpen = Boolean(congestionPopup && openPort?.code === port.code);
     closeCongestion();
     if (wasOpen) return;
-    openPort = port;
-    button.setAttribute('aria-expanded', 'true');
     congestionPopup = createPortPopup({ map, container, coordinates: port.coordinates,
       card: createPortIssuesCard(port, assessment, portIssues.get(port.code) ?? [], onReroute, onLearnMore),
       label: `${port.name} voyage issues`,
       onClose: () => { button.setAttribute('aria-expanded', 'false'); openPort = null; }
     });
+    openPort = port;
+    button.setAttribute('aria-expanded', 'true');
     congestionPopup.getElement().addEventListener('keydown', event => {
       if (event.key === 'Escape') { closeCongestion(); button.focus(); }
     });
   }
-  map.on('click', closeCongestion);
+  map.on('click', event => {
+    if (!event.originalEvent?.target?.closest?.('.map-port-marker, .port-popup')) closeCongestion();
+  });
+  let clampingLatitude = false;
+  function constrainLatitude() {
+    if (clampingLatitude) return;
+    const center = map.getCenter();
+    const lat = latitudeWithinCoverage(center.lat, coverageBounds, map.getZoom(), container.clientHeight);
+    if (Math.abs(lat - center.lat) < 0.000001) return;
+    clampingLatitude = true;
+    try { map.jumpTo({ center: [center.lng, lat] }); } finally { clampingLatitude = false; }
+  }
+  map.on('move', constrainLatitude);
   function fit() {
     if (!latestRoute || !container.clientWidth || !container.clientHeight) return;
     zoom.reset();
@@ -171,7 +189,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     const progressWidth = container.parentElement.querySelector('.compliance-progress')?.offsetWidth ?? 0;
     map.fitBounds(routeBounds({ type: 'MultiLineString', coordinates: [...geometryLines(latestRoute.geometry),
       ...geometryLines(reroutePreview?.route?.geometry), ...geometryLines(reroutePreview?.onwardTransport?.geometry)] }), {
-      padding: { top: Math.min(150, container.clientHeight * 0.2), right: mobile ? 30 : Math.min(container.clientWidth * 0.3, Math.max(240, progressWidth + 65)), bottom: Math.min(container.clientHeight * 0.4, Math.max(mobile ? 230 : 190, (container.parentElement.querySelector('.route-summary')?.offsetHeight ?? 130) + 45)), left: mobile ? 30 : reroutePreview ? Math.min(container.clientWidth * 0.35, (container.parentElement.querySelector('.route-summary')?.offsetWidth ?? 430) + 45) : 65 },
+      padding: { top: Math.min(150, container.clientHeight * 0.2), right: mobile ? 30 : Math.min(container.clientWidth * 0.3, Math.max(240, progressWidth + 65)), bottom: Math.min(container.clientHeight * 0.4, Math.max(mobile ? 230 : 190, (container.parentElement.querySelector('.route-summary')?.offsetHeight ?? 130) + 45)), left: mobile ? 30 : Math.min(container.clientWidth * 0.35, (container.parentElement.querySelector('.route-summary')?.offsetWidth ?? 430) + 65) },
       retainPadding: false,
       maxZoom: 6, duration: cssDurationMs('--camera-fit-duration', 900)
     });
@@ -203,12 +221,12 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
       coverageBounds = forecastMapBounds(waveGrid);
       zoom.reset();
       map.stop();
-      map.setMaxBounds(coverageBounds);
+      constrainLatitude();
       constrainZoom();
       const current = ++revision;
       return ready.then(() => {
         if (revision !== current) return;
-        reroutePreview = null; map.setPaintProperty('route-layer', 'line-opacity', 1); alternativeMarker?.remove(); alternativeMarker = null;
+        reroutePreview = null; rerouteSelected = false; map.setPaintProperty('route-layer', 'line-opacity', 1); alternativeMarker?.remove(); alternativeMarker = null;
         map.getSource('reroute-sea').setData(empty()); map.getSource('reroute-ground').setData(empty());
         map.getSource('route').setData(collection([routeFeature(route)]));
         const ports = [{ ...origin, role: 'origin' }, { ...destination, role: 'destination' }];
@@ -237,6 +255,7 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
     },
     selectReroute(selected) {
       closeCongestion();
+      rerouteSelected = selected; showRerouteLabels();
       ready.then(() => {
         map.setPaintProperty('route-layer', 'line-opacity', selected ? 0.45 : 1);
         map.setPaintProperty('reroute-sea-line', 'line-opacity', selected ? 1 : 0.65);
@@ -254,12 +273,14 @@ export function createFlatMap({ container, onStatus = () => {}, onVoyageTick = (
       if (preview) {
         const port = Object.values(preview.ports).find(p => p.locode === preview.alternativePortId);
         if (port?.approachCoordinates) {
-          const label = document.createElement('div'); label.className = 'reroute-port-label';
-          label.textContent = `${port.name} (${port.locode}) · Alternative`;
-          alternativeMarker = new mapboxgl.Marker({ element: label, anchor: 'bottom', offset: [0, -8] })
+          const element = document.createElement('div'); element.className = 'map-port-marker';
+          const label = document.createElement('span'); label.className = 'map-port-label';
+          label.textContent = portLabel({ name: port.name, code: port.locode }); element.append(label);
+          alternativeMarker = new mapboxgl.Marker({ element, anchor: 'bottom', offset: [0, -10] })
             .setLngLat(port.approachCoordinates).addTo(map);
         }
       }
+      showRerouteLabels();
       fit();
     },
     setPortCongestion(assessments) {

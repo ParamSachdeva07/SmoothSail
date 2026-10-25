@@ -2,6 +2,8 @@ import { api } from '../api/client.js';
 
 // A level alone cannot create an alert: it must be current and supported by evidence.
 export function issueLevel(assessment, now = Date.now()) {
+  if (assessment?.demo) return assessment.display?.showBadge && ['mild', 'high'].includes(assessment.level)
+    ? assessment.level : null;
   if (!['mild', 'high'].includes(assessment?.level) || !assessment?.display?.showBadge ||
       assessment.researchStatus !== 'completed' || !assessment.sources?.length ||
       !Number.isFinite(Date.parse(assessment.evidenceAsOf)) ||

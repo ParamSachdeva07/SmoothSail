@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     route_timeout_seconds: int = Field(default=45, ge=5, le=180)
     max_candidates: int = Field(default=8, ge=3, le=20)
     gemini_api_key: SecretStr = SecretStr('')
+    tinyfish_api_key: SecretStr = SecretStr('')
     gemini_model: str = 'gemini-4-argon'
     congestion_calls_per_hour: int = Field(default=20, ge=0, le=1000)
     compliance_calls_per_hour: int = Field(default=60, ge=0, le=10000)

@@ -60,11 +60,12 @@ test('HTTP client sends one JSON route request without cookies and respects cata
     calls.push({ url, init }); return new Response(JSON.stringify({ routes: [route] }), { status: 200 });
   });
   const input = { origin: 'NLRTM', destination: 'SGSIN' };
-  await client.getPorts(); await client.planRoutes(input);
-  assert.equal(calls[0].url, 'https://example.test/ports?limit=50');
-  assert.equal(calls[1].url, 'https://example.test/routes');
-  assert.equal(calls[1].init.credentials, 'omit');
-  assert.deepEqual(JSON.parse(calls[1].init.body), input);
+  await client.getPorts(); await client.getPorts({ query: 'Port Said', limit: 10 }); await client.planRoutes(input);
+  assert.equal(calls[0].url, 'https://example.test/ports?limit=20&q=');
+  assert.equal(calls[1].url, 'https://example.test/ports?limit=10&q=Port%20Said');
+  assert.equal(calls[2].url, 'https://example.test/routes');
+  assert.equal(calls[2].init.credentials, 'omit');
+  assert.deepEqual(JSON.parse(calls[2].init.body), input);
 });
 
 test('structured backend errors, startup failures and network errors stay actionable', async () => {

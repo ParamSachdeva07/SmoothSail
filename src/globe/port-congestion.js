@@ -41,7 +41,7 @@ export function createCongestionCard(port, assessment, onReroute) {
     assessment.level === 'high' ? 'High congestion' : 'Mild congestion'));
   const body = node('div', 'congestion-card__details');
   body.append(formattedText('congestion-card__summary', assessment.summary));
-  body.append(node('p', 'congestion-card__meta',
+  if (!assessment.demo) body.append(node('p', 'congestion-card__meta',
     `${assessment.basis === 'measured' ? 'Measured conditions' : 'Reported conditions'} · ${dateLabel(assessment.evidenceAsOf)}`));
   const alt = assessment.alternativePort;
   const alternative = node('div', 'congestion-card__alternative');
@@ -73,10 +73,12 @@ export function createCongestionCard(port, assessment, onReroute) {
     }
   } else alternative.append(node('p', '', 'No other supported port is available.'));
   body.append(alternative);
-  const sources = node('div', 'congestion-card__sources');
-  sources.append(node('p', 'congestion-card__eyebrow', 'Sources'));
-  sources.append(sourceList(assessment.sources ?? []));
-  body.append(sources, node('p', 'congestion-card__meta', 'Recent reports · not a forecast for your arrival.'));
+  if (!assessment.demo) {
+    const sources = node('div', 'congestion-card__sources');
+    sources.append(node('p', 'congestion-card__eyebrow', 'Sources'));
+    sources.append(sourceList(assessment.sources ?? []));
+    body.append(sources, node('p', 'congestion-card__meta', 'Recent reports · not a forecast for your arrival.'));
+  }
   for (const note of assessment.qualityNotes || []) body.append(node('p', 'congestion-card__meta', note));
   disclosure.append(level, body);
   item.append(disclosure);
@@ -105,6 +107,9 @@ export function createPortMarker(port, labelText, onOpen, onExpire = () => {}) {
     button.dataset.level = congestion === 'high' || issues.some(issue => issue.severity === 'red') ? 'high'
       : congestion || issues.some(issue => issue.severity === 'yellow') ? 'mild' : 'info';
     button.setAttribute('aria-label', `${port.name}: ${count} ${count === 1 ? 'issue' : 'issues'}. Show issues`);
+  }
+  for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) {
+    button.addEventListener(type, event => event.stopPropagation());
   }
   button.addEventListener('click', (event) => {
     event.stopPropagation();

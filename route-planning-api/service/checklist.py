@@ -18,6 +18,7 @@ from service.compliance_agents import WebEvidence
 from service.compliance_models import CATEGORIES, Category, Evidence
 from service.models import Model, RouteError
 from service.report_context import direct_context
+from service.demo_documents import documents as demo_documents
 
 
 class ChecklistRequest(Model):
@@ -94,6 +95,7 @@ class ExportChecklist(Model):
     partial: bool
     research_status: Literal['not_started', 'researching', 'completed', 'unavailable', 'not_needed']
     research_gaps: list[Annotated[str, Field(max_length=10000)]] = Field(default_factory=list, max_length=30)
+    demo: bool = False
 
     @model_validator(mode='after')
     def valid_references(self):
@@ -142,8 +144,8 @@ PROMPT = '''Create a comprehensive but concise voyage document checklist from AL
 Do not rewrite the actions: the program preserves them. Identify forms, declarations, certificates,
 permits, insurance/crew records, emissions records, customs and dangerous-goods documentation relevant
 ONLY to these findings and this selected voyage. One record per document; merge duplicates and include
-all related actionIds. Research quickly with Mongo lookup_reference and Google Search at your discretion.
-Read detailed route data only when necessary. Cite evidenceIds supplied by lookup or existing evidence;
+all related actionIds. Research quickly with Mongo lookup_reference and TinyFish research_web at your discretion.
+Reuse supplied evidence first. Search only for missing document requirements or official forms, never re-research the compliance finding. Batch independent lookups in one turn; do not chase exhaustive variations. Keep each document purpose, provider and timing to one short sentence. Read detailed route data only when necessary. Cite evidenceIds supplied by lookup or existing evidence;
 for new web sources supply a short exact supporting passage and its URL in webEvidence (max 2).
 Use downloadAssets for existing files or blank forms, referring to a verified evidenceId. Use blank_form
 ONLY when the cited official source actually supplies that blank form. A rule or guidance publication
@@ -285,6 +287,16 @@ async def generate(service, body):
     context, data = saved['context'], saved['data']
     async def research():
         snapshot.update(id=fingerprint, generatedAt=datetime.now(UTC).isoformat())
+        if saved.get('demo_research'):
+            cargo = saved['context'].get('cargoText', '')
+            manifest_case = all(marker in cargo for marker in ('SS-2026-001', 'SPE-LFP-2026', '3480'))
+            snapshot['demo'] = manifest_case
+            snapshot['documents'] = demo_documents(snapshot['actions']) if manifest_case else []
+            snapshot['researchStatus'] = 'completed'
+            snapshot['researchGaps'] = ['Public references are attached. Obtain actual signed declarations, permits, vessel records and insurance from their issuers.'] if manifest_case else ['Upload the cargo manifest to see relevant document references.']
+            snapshot['notice'] = 'Reference checklist only. The uploaded manifest is fictional; public guidance is real, but no issued voyage document or clearance is supplied.'
+            cache[fingerprint] = snapshot
+            return snapshot
         if snapshot['actions']:
             source_rows = list(data.get('evidence', [])) + [e for a in snapshot['actions'] for e in a['evidence']]
             source_rows = list({e['id']: e for e in source_rows}.values())
@@ -292,10 +304,15 @@ async def generate(service, body):
                      'selectedRouteId': body.route_id, 'coverage': snapshot['coverage'],
                      'evidence': [{**e, 'supportingPassage': e.get('supportingPassage', '')[:1500]} for e in source_rows]}
 
+            # The curator needs the selected voyage, not all alternative-route briefs.
+            # All actions and supplied cargo remain intact; full report remains readable.
+            brief = direct_context(context)
+            brief['routeReport']['routes'] = [r for r in brief['routeReport']['routes'] if r['id'] == body.route_id]
+            output_budget = min(8192, max(3072, 1024 + 384 * len(snapshot['actions'])))
             try:
                 output, citations = await service.runner.invoke(PROMPT,
-                    json.dumps(direct_context(context), ensure_ascii=False), extra, DocumentResearch,
-                    report=context['routeReport'], max_output_tokens=8192)
+                    json.dumps(brief, ensure_ascii=False), extra, DocumentResearch,
+                    report=context['routeReport'], max_output_tokens=output_budget)
                 registry = {}
                 for entry in extra['evidence'] + source_rows:
                     # Mongo records include retrieval-only category metadata.
@@ -353,6 +370,8 @@ def export_snapshot(service, body):
         result['notice'] = ('Planning checklist, not regulatory clearance. Checked items record your progress, '
             'not verified compliance. This export reproduces the displayed checklist and does not revalidate '
             'its findings. Confirm current requirements and timings with the relevant authority or provider.')
+        if result.get('demo'):
+            result['notice'] = 'Public reference documents are real; the uploaded manifest is fictional and no issued voyage document or clearance is supplied. ' + result['notice']
         if result['routeId'] != body.route_id or result['id'] != body.checklist_id:
             raise RouteError('unknown_checklist', 'The export does not match the displayed route checklist.')
     else:

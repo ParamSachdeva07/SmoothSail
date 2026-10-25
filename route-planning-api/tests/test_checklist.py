@@ -242,3 +242,20 @@ def test_display_export_rejects_unbounded_or_inconsistent_payloads(monkeypatch):
     bad = deepcopy(request)
     bad['snapshot']['actions'][0]['evidence'][0]['url'] = 'javascript:alert(1)'
     assert client.post('/voyages/checklist/pdf', json=bad).status_code == 422
+
+
+def test_curator_brief_is_selected_route_only_and_retains_actions():
+    import json
+    instance = service()
+    class CapturingRunner(Runner):
+        async def invoke(self, prompt, shared, extra, schema, **kwargs):
+            brief = json.loads(shared)
+            assert [r['id'] for r in brief['routeReport']['routes']] == ['r1']
+            assert len(extra['actions']) == 3
+            assert kwargs['max_output_tokens'] == 3072
+            assert len(kwargs['report']['routes']) == 2
+            return await super().invoke(prompt, shared, extra, schema, **kwargs)
+    instance.runner = CapturingRunner()
+    result = asyncio.run(generate(instance, body()))
+    assert result['researchStatus'] == 'completed'
+    assert len(instance.contexts['analysis']['context']['routeReport']['routes']) == 2

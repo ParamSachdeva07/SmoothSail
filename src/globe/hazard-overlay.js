@@ -5,7 +5,7 @@ import { cssToken } from '../settings.js';
 const empty = () => ({ type: 'FeatureCollection', features: [] });
 export function createHazardOverlay(map, { beforeLayer, onNotices = () => {} }) {
   const high = cssToken('--hazard-high', '#B07857'), severe = cssToken('--hazard-severe', '#AD6068');
-  const restricted = cssToken('--hazard-restricted', '#8C6477'), paper = cssToken('--bg', '#FAFAFA');
+  const restricted = cssToken('--hazard-restricted', '#8C6477');
   const seaColor = ['case', ['>=', ['get', 'thresholdM'], 6], severe, high];
   let notices = [], previousSeas = null, previousNotices = '', popup = null;
   const visible = { hazards: true, restrictions: true };
@@ -27,7 +27,7 @@ export function createHazardOverlay(map, { beforeLayer, onNotices = () => {} }) 
   const labelLayout = { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
     'text-size': 10, 'text-letter-spacing': 0.1, 'text-transform': 'uppercase', 'text-padding': 18 };
   add('restrictions', { id: 'area-notice-label', type: 'symbol', source: 'area-notices', layout: labelLayout,
-    paint: { 'text-color': restricted, 'text-halo-color': paper, 'text-halo-width': 2 } });
+    paint: { 'text-color': restricted } });
 
   function showDetails(event) {
     const p = event.features?.[0]?.properties;

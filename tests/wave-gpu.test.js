@@ -13,7 +13,7 @@ test('GPU playback reuses textures, hides correctly, and recovers from context l
     texParameteri() {}, pixelStorei() {}, texImage2D() { uploads++; }, useProgram() {}, uniformMatrix4fv() {}, activeTexture() {},
     uniform1i() {}, uniform1f() {}, drawArrays() { draws++; }, deleteTexture() { deleted++; }, deleteBuffer() {}, deleteVertexArray() {}, deleteProgram() {}
   };
-  const map = { on: (name, fn) => handlers.set(name, fn), off: name => handlers.delete(name), triggerRepaint: () => repaints++ };
+  const map = { getBounds: () => ({ getWest: () => -90, getEast: () => 90 }), on: (name, fn) => handlers.set(name, fn), off: name => handlers.delete(name), triggerRepaint: () => repaints++ };
   const layer = createWaveGpuLayer({ bounds: [-180, -60, 180, 60], columns: 2, rows: 2 });
   layer.onAdd(map, gl);
   for (const index of [0, 1, 2]) layer.put(index, { width: 2, height: 2, pixels: new Uint8Array(16) });

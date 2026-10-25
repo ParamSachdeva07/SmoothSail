@@ -21,7 +21,7 @@ class RerouteRequest(Model):
         return self
 
 
-async def preview_reroute(body, repository, onward, calculator=calculate):
+async def preview_reroute(body, repository, onward, calculator=calculate, cache_report=None):
     departure = body.affected_port_id == body.original.origin
     request = body.original.model_copy(update={('origin' if departure else 'destination'): body.alternative_port_id})
     # Independent routing call: no compliance swarm or replacement of the original voyage context.
@@ -32,7 +32,12 @@ async def preview_reroute(body, repository, onward, calculator=calculate):
             else (body.alternative_port_id, body.affected_port_id))))
     route = next((route for route in report.routes if route.strategy == body.strategy), None)
     if route is None: raise RouteError('alternative_unavailable', 'No alternative was found for this routing objective.', 422)
+    if cache_report:
+        cache_report(report)
     return {'route': route.model_dump(mode='json', by_alias=True),
+        'routes': [candidate.model_dump(mode='json', by_alias=True) for candidate in report.routes],
+        'reportId': report.report_id,
+        'departureTime': report.departure_time.isoformat(),
         'origin': report.origin, 'destination': report.destination,
         'ports': {role: port.model_dump(mode='json', by_alias=True) for role, port in report.metadata.ports.items()}, 'onwardTransport': transfer,
         'affectedPortId': body.affected_port_id, 'alternativePortId': body.alternative_port_id,

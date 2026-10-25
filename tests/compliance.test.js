@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAnalysisPlanner } from '../src/data/route-planning.js';
+import { createAnalysisPlanner, useDemoResearch } from '../src/data/route-planning.js';
 import { createApiClient } from '../src/api/client.js';
 import { findingsForPort, coverageSummary, formatEvidenceMarkers, categoryProgress } from '../src/data/compliance.js';
 
@@ -22,8 +22,10 @@ test('routes resolve early and specialist updates survive navigation but cancel 
   assert.equal(await promise, report);
   page.abort(); assert.equal(calls[0].signal.aborted, false);
   const states = [], unsubscribe = planner.subscribe(report, state => states.push(state.findings.length));
-  calls[0].onEvent({ type: 'assessment', category: 'trade', findings: [{ id: 'f1' }], status: 'needs_input' });
+  calls[0].onEvent({ type: 'assessment', category: 'trade', findings: [{ id: 'f1', status: 'needs_input', scope: { routeIds: ['r1'], portIds: ['NLRTM'] } }], status: 'needs_input' });
   assert.deepEqual(states, [0, 1]);
+  assert.equal(planner.getState(report).complete, false);
+  assert.equal(findingsForPort(planner.getState(report).findings, 'r1', 'NLRTM').length, 1);
   assert.equal(calls[0].input.cargoText, 'Full cargo');
   const next = planner.calculate({ origin: 'USNYC', destination: 'NLRTM' });
   assert.equal(calls[0].signal.aborted, true);
@@ -31,6 +33,12 @@ test('routes resolve early and specialist updates survive navigation but cancel 
   calls[0].onEvent({ type: 'assessment', category: 'security', findings: [{ id: 'stale' }] });
   assert.equal(planner.getState(report).findings.length, 1);
   unsubscribe();
+});
+
+test('demo research requires an explicit local opt-in and the exact port pair', () => {
+  assert.equal(useDemoResearch({ origin: 'FRLEH', destination: 'SGSIN' }, true), true);
+  assert.equal(useDemoResearch({ origin: 'FRLEH', destination: 'SGSIN' }, false), false);
+  assert.equal(useDemoResearch({ origin: 'NLRTM', destination: 'SGSIN' }, true), false);
 });
 
 test('NDJSON parser handles split Unicode and multiple results without buffering until complete', async () => {
@@ -56,6 +64,7 @@ test('port lists include scoped information gaps alongside supported alerts', ()
   assert.equal(findingsForPort([{ ...finding, status: 'needs_input', severity: 'info', evidence: [] }], 'r1', 'NLRTM').length, 1);
   assert.equal(findingsForPort([finding], 'r1', 'FRLEH').length, 0);
   assert.equal(findingsForPort([{ ...finding, evidence: [] }], 'r1', 'NLRTM').length, 0);
+  assert.equal(findingsForPort([{ ...finding, demo: true, status: 'unverified', evidence: [] }], 'r1', 'NLRTM').length, 1);
   assert.equal(findingsForPort([{ ...finding, severity: 'info' }], 'r1', 'NLRTM').length, 0);
   assert.match(coverageSummary({ checks: { sanctions: { status: 'needs_input' } }, complete: true }), /1 need data/);
 });
@@ -66,6 +75,7 @@ test('category progress shows completed work separately from findings and failed
   assert.equal(incomplete.label, 'Research complete'); assert.equal(incomplete.phase, 'done');
   assert.equal(incomplete.status, 'needs_input');
   assert.equal(categoryProgress({ checks: {}, complete: true }, 'trade').label, 'Unavailable');
+  assert.equal(categoryProgress({ checks: { trade: { status: 'completed', demo: true } } }, 'trade').label, 'Research complete');
   assert.notEqual(categoryProgress({ checks: {}, complete: true }, 'trade').phase, 'done');
   assert.equal(categoryProgress({ checks: {}, complete: true, error: 'Disconnected' }, 'trade').label, 'Interrupted');
   const row = categoryProgress({ checks: { security: { status: 'completed', summary: 'Checked publications',
@@ -84,6 +94,7 @@ test('post-selection details reuse the report, carry IMO and text, and cannot be
   primary.onEvent({ type: 'context_ready', analysisId: 'a1', contextToken: 'secret' });
   await Promise.resolve();
   assert.equal(detail.input.vessel.imoNumber, '9876543');
+  assert.equal(planner.getState(report).imoNumber, '9876543');
   assert.equal(detail.input.cargoText, 'UN1993 cargo');
   assert.equal(detail.input.analysisId, 'a1'); assert.equal('routeReport' in detail.input, false);
   detail.onEvent({ type: 'context_ready', analysisId: 'a1', contextToken: 'secret' }); await pending;

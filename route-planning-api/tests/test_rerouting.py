@@ -14,8 +14,9 @@ from service.config import Settings
 
 
 class Repo:
-    def port_land_coordinates(self, port):
-        return [4.2, 51.9] if port == 'NLRTM' else [4.4, 51.2]
+    def port_road_anchor(self, port):
+        return {'coordinates': [4.2, 51.9] if port == 'NLRTM' else [4.4, 51.2],
+            'source': 'verified_port_access'}
 
 
 def test_road_cost_uses_routed_distance_once_and_is_never_a_whole_vessel_quote():
@@ -50,15 +51,22 @@ def test_reroute_keeps_vessel_settings_and_only_changes_one_endpoint(affected, d
         calls.append(request)
         assert include_display is False
         assert request.vessel_parameters.fuel_usd_per_tonne == 700
-        route = SimpleNamespace(strategy='economical', model_dump=lambda **_: {'id': 'alt', 'strategy': 'economical'})
-        return SimpleNamespace(routes=[route], origin=request.origin, destination=request.destination,
-            metadata=SimpleNamespace(ports={'origin': SimpleNamespace(model_dump=lambda **_: {'locode': request.origin})}))
+        routes = [SimpleNamespace(strategy=strategy, model_dump=lambda strategy=strategy, **_: {
+            'id': f'alt-{strategy}', 'strategy': strategy}) for strategy in ('fastest', 'economical', 'lowest_emissions')]
+        return SimpleNamespace(routes=routes, origin=request.origin, destination=request.destination,
+            report_id='fbf24f5b-bc6d-47db-912d-a4834be2d0b1', departure_time=datetime(2026, 10, 25, 3, tzinfo=UTC),
+            metadata=SimpleNamespace(ports={'origin': SimpleNamespace(model_dump=lambda **_: {'locode': request.origin})}),
+            model_dump=lambda **_: {'origin': request.origin, 'destination': request.destination,
+                'routes': [route.model_dump() for route in routes]})
     async def estimate(origin, destination):
         assert (origin, destination) == direction
         return {'status': 'unavailable', 'cost': None}
     result = asyncio.run(preview_reroute(body, Repo(), SimpleNamespace(estimate=estimate), calculator=calculate))
     assert result['ports']['origin']['locode'] == result['origin']
-    assert result['route']['id'] == 'alt' and result['complianceStatus'] == 'not_assessed'
+    assert result['route']['id'] == 'alt-economical' and result['complianceStatus'] == 'not_assessed'
+    assert [route['strategy'] for route in result['routes']] == ['fastest', 'economical', 'lowest_emissions']
+    assert result['reportId'] == 'fbf24f5b-bc6d-47db-912d-a4834be2d0b1'
+    assert result['departureTime'] == '2026-10-25T03:00:00+00:00'
     assert original['origin'] == 'NLRTM' and original['destination'] == 'SGSIN'
     assert len(calls) == 1
 
@@ -110,7 +118,31 @@ def test_date_only_provider_reports_do_not_fail_or_invent_precise_observation_ti
 
 def test_missing_landside_coordinates_do_not_snap_an_offshore_point_to_a_road():
     class Missing:
-        def port_land_coordinates(self, _): return None
+        def port_road_anchor(self, _): return None
     service = OnwardTransport(Missing(), httpx.MockTransport(lambda _: pytest.fail('No road request without landside coordinates')))
     result = asyncio.run(service.estimate('NLRTM', 'SGSIN'))
     assert result['geometry'] is None and result['cost'] is None
+
+
+def test_road_route_uses_named_osm_port_features_instead_of_catalogue_city_points():
+    class Catalogue:
+        def port_road_anchor(self, port):
+            return {'name': 'Rotterdam' if port == 'NLRTM' else 'Hamburg',
+                'country': port[:2], 'catalogueCoordinates': [4.4, 51.9] if port == 'NLRTM' else [10.0, 53.5],
+                'coordinates': None}
+    road_requests = []
+    def respond(request):
+        if 'nominatim' in str(request.url):
+            port = 'Rotterdam' if 'Rotterdam' in str(request.url) else 'Hamburg'
+            coords = [4.0, 51.9] if port == 'Rotterdam' else [9.9, 53.5]
+            return httpx.Response(200, json=[{'type': 'harbour', 'display_name': f'Port of {port}',
+                'lon': str(coords[0]), 'lat': str(coords[1]), 'osm_type': 'way', 'osm_id': 123}])
+        road_requests.append(str(request.url))
+        return httpx.Response(200, json={'code': 'Ok', 'routes': [{'distance': 500000, 'duration': 30000,
+            'geometry': {'type': 'LineString', 'coordinates': [[4.0, 51.9], [9.9, 53.5]]}}]})
+    service = OnwardTransport(Catalogue(), httpx.MockTransport(respond))
+    result = asyncio.run(service.estimate('NLRTM', 'DEHAM'))
+    assert result['status'] == 'estimated'
+    assert result['roadAnchors']['origin']['source'] == 'osm_port_feature'
+    assert '4.0,51.9;9.9,53.5' in road_requests[0]
+    assert '4.4,51.9' not in road_requests[0]

@@ -34,7 +34,8 @@ export function createApiClient(baseUrl = API_BASE_URL, fetcher = globalThis.fet
     }
   }
   const client = {
-    getPorts: (options = {}) => request('/ports?limit=50', { timeoutMs: 60_000, ...options }),
+    getPorts: ({ query = '', limit = 20, ...options } = {}) => request(`/ports?limit=${limit}&q=${encodeURIComponent(query)}`,
+      { timeoutMs: 60_000, ...options }),
     planRoutes: (input, options = {}) => request('/routes', { ...options, body: input }),
     previewReroute: (input, options = {}) => request('/routes/reroute', { ...options, body: input }),
     getPortCongestion: (portIds, options = {}) => request('/port-congestion', {
@@ -45,7 +46,13 @@ export function createApiClient(baseUrl = API_BASE_URL, fetcher = globalThis.fet
         method: 'POST', credentials: 'omit', signal,
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input)
       });
-      if (!response.ok || !response.body) throw new Error('Voyage analysis is unavailable. Please try again.');
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        if (response.status === 404) throw new Error('The connected backend does not have the voyage-analysis endpoint. Check VITE_ROUTE_API_BASE_URL and restart the frontend.');
+        if (response.status === 503) throw new Error('The voyage service is starting or busy. Please try again shortly.');
+        throw new Error(payload?.error?.message || (typeof payload?.detail === 'string' ? payload.detail : null) || `Voyage analysis failed (${response.status}). Please try again.`);
+      }
+      if (!response.body) throw new Error('The voyage service returned an empty response. Please try again.');
       const reader = response.body.getReader(), decoder = new TextDecoder();
       let fragments = [];
       try {

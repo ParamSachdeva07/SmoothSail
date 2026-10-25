@@ -15,6 +15,7 @@ import httpx
 from pymongo.errors import PyMongoError
 
 from service.checklist_pdf import render_pdf
+from pathlib import Path
 from service.compliance_data import official_url, public_text
 
 MAX_FILE_BYTES = 12 * 1024 * 1024
@@ -66,6 +67,15 @@ def collect_assets(snapshot):
 
 async def read_asset(asset, store, client):
     key, source = asset['key'], asset['source']
+    official_cache = {
+        'official-dangerous-goods-declaration': 'imo-imdg-msc-556-108.pdf',
+        'official-eu-mrv': 'ec-maritime-monitoring-plan-guidance.pdf',
+    }
+    filename = official_cache.get(source.get('id'))
+    if filename:
+        path = Path(__file__).resolve().parents[1] / 'data' / 'official_refs' / filename
+        if path.is_file():
+            return path.read_bytes(), 'pdf', 'original_file'
     if key.startswith('stored:'):
         def stored():
             result = store.download_document(key.removeprefix('stored:'))
@@ -203,6 +213,9 @@ async def build_bundle(snapshot, checked, notes, store, *, transport=None, pdf_c
                 'Folders: blank-forms/ contains identified blank forms; references/ contains source files or readable reference text;',
                 'prepare-or-verify/ contains obtaining instructions and missing information for every recommendation.',
                 'document-index.json maps every recommendation to included files, source links and unavailable-file reasons.', '', 'Document availability:']
+            if snapshot.get('demo'):
+                text.extend(['', 'references/ includes cached official IMO and European Commission publications.',
+                    'These are public references, not completed declarations, permits or certificates.'])
             text.extend(f'- {r["title"]}: {r["availability"].replace("_", " ")}; guide: {r["guidePath"]}' for r in requirements)
             text.extend(['', 'Files not included:'])
             text.extend(f'- {f["title"]}: {f["note"]}' for f in files.values() if f['status'] != 'included')

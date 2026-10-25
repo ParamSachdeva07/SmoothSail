@@ -1,5 +1,5 @@
 import { icon } from '../icons.js';
-import { PORTS, findPort, searchPorts, loadPorts } from '../../data/ports.js';
+import { PORTS, findPort, searchPorts, loadPorts, ensurePort } from '../../data/ports.js';
 import { shipment, toRouteRequest } from '../../data/shipment.js';
 import { escapeHtml } from '../../data/routes.js';
 
@@ -26,7 +26,6 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
         <p class="form-status mono-label" role="status" aria-live="polite"></p>
         <button class="button button--primary" type="submit" disabled>${icon('search')}<span>Search routes</span></button>
         <button class="button button--quiet" type="button" data-action="retry" hidden>Retry loading ports</button>
-        <button class="button button--quiet" type="button" data-action="back">${icon('arrow-left')}<span>Back to globe</span></button>
       </form>
       <p class="panel-foot mono-label">Loading supported ports…</p>
     </div>`;
@@ -53,7 +52,6 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
     for (const [key, input] of Object.entries(inputs)) input.disabled = busy || (key !== 'departure' && !PORTS.length);
     submit.disabled = busy || !PORTS.length;
     submit.querySelector('span').textContent = busy ? 'Calculating routes…' : 'Search routes';
-    element.querySelector('[data-action="back"] span').textContent = busy ? 'Cancel and go back' : 'Back to globe';
   }
   function cancel() {
     controller?.abort();
@@ -66,6 +64,7 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
     retry.hidden = true;
     try {
       await loadPorts();
+      await Promise.all(['origin', 'destination'].map(key => ensurePort(shipment[`${key}Id`])));
       for (const key of ['origin', 'destination']) inputs[key].value = labelFor(shipment[`${key}Id`]);
       element.querySelector('.panel-foot').textContent = '';
       if (active) showStatus('');
@@ -84,7 +83,11 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
     const list = element.querySelector(`#list-${key}`);
     let matches = [];
     let highlighted = -1;
+    let searchRevision = 0;
+    let searchTimer = null;
+    let searchController = null;
     const close = () => {
+      searchRevision++; clearTimeout(searchTimer); searchController?.abort();
       list.hidden = true;
       input.setAttribute('aria-expanded', 'false');
       input.removeAttribute('aria-activedescendant');
@@ -98,9 +101,8 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
         node.scrollIntoView({ block: 'nearest' });
       }
     };
-    const open = () => {
-      const needle = input.value === labelFor(shipment[`${key}Id`]) ? '' : input.value;
-      matches = searchPorts(needle);
+    const showMatches = (results) => {
+      matches = results;
       highlighted = -1;
       list.innerHTML = matches.length ? matches.map((port, i) => `
         <li id="${key}-option-${i}" role="option" data-id="${escapeHtml(port.id)}" aria-selected="false">
@@ -109,6 +111,26 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
       list.hidden = false;
       input.setAttribute('aria-expanded', 'true');
       input.removeAttribute('aria-activedescendant');
+    };
+    const open = () => {
+      const needle = input.value === labelFor(shipment[`${key}Id`]) ? '' : input.value;
+      const revision = ++searchRevision;
+      clearTimeout(searchTimer); searchController?.abort();
+      if (!needle || needle.trim().length < 2) {
+        searchPorts(needle).then(results => { if (revision === searchRevision) showMatches(results); });
+        return;
+      }
+      showMatches([]);
+      list.innerHTML = '<li role="presentation">Searching ports…</li>';
+      searchController = new AbortController();
+      searchTimer = setTimeout(() => {
+        searchPorts(needle, { signal: searchController.signal }).then(results => {
+          if (revision === searchRevision) showMatches(results);
+        }).catch(error => {
+          if (revision !== searchRevision || error.name === 'AbortError') return;
+          list.innerHTML = '<li role="presentation">Port search unavailable. Try again.</li>';
+        });
+      }, 180);
     };
     const choose = (id) => {
       const port = findPort(id);
@@ -176,7 +198,6 @@ export function createSearchScreen({ getGlobe, onBack, onSubmit }) {
     }
   });
   retry.addEventListener('click', preparePorts);
-  element.querySelector('[data-action="back"]').addEventListener('click', () => { cancel(); onBack?.(); });
 
   return {
     element, showGlobe: true,

@@ -1,3 +1,4 @@
+import { shipZoomScale } from './map-navigation.js';
 import mapboxgl from 'mapbox-gl';
 import { createVoyageTrack } from './voyage.js';
 import { cssDurationMs } from '../settings.js';
@@ -10,6 +11,8 @@ export function createVoyagePlayer(map, { onTick = () => {}, onTime = () => {}, 
   const marker = new mapboxgl.Marker({ element, anchor: 'center' });
   const headingElement = element.firstElementChild;
   let track = null, hour = 0, playing = false, active = true, raf = null, previous = 0, heading = null, speed = 1;
+  const scaleShip = () => { element.style.setProperty('--ship-scale', shipZoomScale(map.getZoom())); };
+  map.on('zoom', scaleShip); scaleShip();
   let lastTick = 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const durationMs = cssDurationMs('--voyage-preview-duration', 90_000);
@@ -82,6 +85,6 @@ export function createVoyagePlayer(map, { onTick = () => {}, onTime = () => {}, 
       onState({ playing, hour, duration: track?.duration ?? 0, speed });
     },
     setActive(next) { active = next; if (!next) setPlaying(false); },
-    destroy() { setPlaying(false); marker.remove(); document.removeEventListener('visibilitychange', visibility); reducedMotion.removeEventListener('change', motionPreference); }
+    destroy() { map.off('zoom', scaleShip); setPlaying(false); marker.remove(); document.removeEventListener('visibilitychange', visibility); reducedMotion.removeEventListener('change', motionPreference); }
   };
 }

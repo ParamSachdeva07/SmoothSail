@@ -1,132 +1,1028 @@
 {
-  "NLRTM": {
-    "nodeId": "n_5d8e2ab0754e5376",
+  "ARBUE": {
+    "catalogueOffsetNm": 14.894,
     "coordinates": [
-      3.62525,
-      51.977
+      -58.279,
+      -34.435
     ],
-    "method": "offshore_target_snap",
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_1246125cfbf45781",
+    "offsetNm": 10.797,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
     "target": [
-      3.7,
-      51.95
+      -58.366667,
+      -34.6
     ],
-    "offsetNm": 3.214
-  },
-  "USNYC": {
-    "nodeId": "n_20809a179c07e715",
-    "coordinates": [
-      -73.53775,
-      40.25075
-    ],
-    "method": "offshore_target_snap",
-    "target": [
-      -73.55,
-      40.25
-    ],
-    "offsetNm": 0.565
-  },
-  "PTLIS": {
-    "nodeId": "n_ef2a67bb1496e051",
-    "coordinates": [
-      -9.6915,
-      38.60575
-    ],
-    "method": "offshore_target_snap",
-    "target": [
-      -9.7,
-      38.65
-    ],
-    "offsetNm": 2.682
-  },
-  "FRLEH": {
-    "nodeId": "n_3616a22af9518b8d",
-    "coordinates": [
-      0.03375,
-      49.45
-    ],
-    "method": "offshore_target_snap",
-    "target": [
-      0.0,
-      49.45
-    ],
-    "offsetNm": 1.321
-  },
-  "DEHAM": {
-    "nodeId": "n_abc1654efc19a5ac",
-    "coordinates": [
-      7.92759375,
-      54.0049375
-    ],
-    "method": "offshore_target_snap",
-    "target": [
-      7.9,
-      54.0
-    ],
-    "offsetNm": 1.021
-  },
-  "SGSIN": {
-    "nodeId": "n_496fb37c4f6c2065",
-    "coordinates": [
-      103.89075,
-      1.1815
-    ],
-    "method": "offshore_target_snap",
-    "target": [
-      103.8,
-      1.15
-    ],
-    "offsetNm": 5.769
-  },
-  "JPTYO": {
-    "nodeId": "n_7368fc3f3a2596d9",
-    "coordinates": [
-      139.9,
-      34.8
-    ],
-    "method": "offshore_target_snap",
-    "target": [
-      139.8,
-      34.9
-    ],
-    "offsetNm": 7.763
+    "wpiObjectId": 3488
   },
   "AUSYD": {
-    "nodeId": "n_108d54cf8315f6b9",
     "coordinates": [
       151.5,
       -34.0
     ],
     "method": "offshore_target_snap",
+    "nodeId": "n_108d54cf8315f6b9",
+    "offsetNm": 7.796,
     "target": [
       151.4,
       -33.9
-    ],
-    "offsetNm": 7.796
+    ]
   },
-  "USLAX": {
-    "nodeId": "n_231260d6aeddb88a",
+  "BEANR": {
+    "catalogueOffsetNm": 0.629,
     "coordinates": [
-      -118.179,
-      33.62825
+      4.100875,
+      51.373125
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_03c5f523db85f073",
+    "offsetNm": 14.672,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      4.4,
+      51.216667
+    ],
+    "wpiObjectId": 1359
+  },
+  "BEZEE": {
+    "catalogueOffsetNm": 0.0,
+    "coordinates": [
+      3.19559375,
+      51.378
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_957184e3e80c0ec5",
+    "offsetNm": 2.688,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      3.2,
+      51.333333
+    ],
+    "wpiObjectId": 1365
+  },
+  "CIABJ": {
+    "catalogueOffsetNm": 4.976,
+    "coordinates": [
+      -4.013,
+      5.237
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_32f6789bcff9beca",
+    "offsetNm": 0.807,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -4.016667,
+      5.25
+    ],
+    "wpiObjectId": 815
+  },
+  "CNQIN": {
+    "catalogueOffsetNm": 2.63,
+    "coordinates": [
+      120.28575,
+      36.086
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_fe3bac341feddb5e",
+    "offsetNm": 3.289,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      120.266667,
+      36.033333
+    ],
+    "wpiObjectId": 148
+  },
+  "DEBRV": {
+    "catalogueOffsetNm": 0.597,
+    "coordinates": [
+      8.53675,
+      53.559
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_b8a9cd54a958ff60",
+    "offsetNm": 2.271,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      8.583333,
+      53.533333
+    ],
+    "wpiObjectId": 1701
+  },
+  "DECUX": {
+    "catalogueOffsetNm": 1.163,
+    "coordinates": [
+      8.71275,
+      53.87275
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_ce7742d6435ce081",
+    "offsetNm": 0.391,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      8.716667,
+      53.866667
+    ],
+    "wpiObjectId": 1690
+  },
+  "DEEME": {
+    "catalogueOffsetNm": 2.334,
+    "coordinates": [
+      7.07725,
+      53.327
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_2ba366ad2ab95f5d",
+    "offsetNm": 3.835,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      7.183333,
+      53.333333
+    ],
+    "wpiObjectId": 1738
+  },
+  "DEHAM": {
+    "coordinates": [
+      7.92759375,
+      54.0049375
     ],
     "method": "offshore_target_snap",
+    "nodeId": "n_abc1654efc19a5ac",
+    "offsetNm": 1.021,
     "target": [
-      -118.3,
-      33.6
+      7.9,
+      54.0
+    ]
+  },
+  "DERSK": {
+    "catalogueOffsetNm": 1.002,
+    "coordinates": [
+      12.080749999999998,
+      54.194562499999996
     ],
-    "offsetNm": 6.295
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_523dc67090c5cf51",
+    "offsetNm": 5.978,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      12.133333,
+      54.1
+    ],
+    "wpiObjectId": 1446
+  },
+  "DEWVN": {
+    "catalogueOffsetNm": 1.558,
+    "coordinates": [
+      8.1774375,
+      53.545874999999995
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_e124f97875385799",
+    "offsetNm": 0.847,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      8.166667,
+      53.533333
+    ],
+    "wpiObjectId": 1736
+  },
+  "EETLL": {
+    "catalogueOffsetNm": 1.431,
+    "coordinates": [
+      24.76125,
+      59.45225
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_683d61b11bf1c21c",
+    "offsetNm": 0.214,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      24.766667,
+      59.45
+    ],
+    "wpiObjectId": 1846
+  },
+  "ESPMI": {
+    "catalogueOffsetNm": 0.0,
+    "coordinates": [
+      2.65675,
+      39.53775
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_24c2bef74c1a66f3",
+    "offsetNm": 2.046,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      2.633333,
+      39.566667
+    ],
+    "wpiObjectId": 1718
+  },
+  "FIHEL": {
+    "catalogueOffsetNm": 0.999,
+    "coordinates": [
+      25.011,
+      60.1175
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_fccea49feb9a7932",
+    "offsetNm": 3.243,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      24.966667,
+      60.166667
+    ],
+    "wpiObjectId": 1772
+  },
+  "FIKTK": {
+    "catalogueOffsetNm": 1.485,
+    "coordinates": [
+      26.924375,
+      60.420500000000004
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_f143384b39c47dbe",
+    "offsetNm": 3.049,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      26.966667,
+      60.466667
+    ],
+    "wpiObjectId": 1815
+  },
+  "FRCQF": {
+    "catalogueOffsetNm": 1.001,
+    "coordinates": [
+      1.84425,
+      50.9725
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_74a3ed565d7e30be",
+    "offsetNm": 0.413,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      1.85,
+      50.966667
+    ],
+    "wpiObjectId": 3456
+  },
+  "FRLEH": {
+    "coordinates": [
+      0.03375,
+      49.45
+    ],
+    "method": "offshore_target_snap",
+    "nodeId": "n_3616a22af9518b8d",
+    "offsetNm": 1.321,
+    "target": [
+      0.0,
+      49.45
+    ]
+  },
+  "FRLRH": {
+    "catalogueOffsetNm": 1.0,
+    "coordinates": [
+      -1.193,
+      46.139
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_b63100c21061823e",
+    "offsetNm": 1.911,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -1.15,
+      46.15
+    ],
+    "wpiObjectId": 1675
+  },
+  "FRMRS": {
+    "catalogueOffsetNm": 1.77,
+    "coordinates": [
+      5.337562500000001,
+      43.2873125
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_34fca04a1e6771d3",
+    "offsetNm": 2.174,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      5.366667,
+      43.316667
+    ],
+    "wpiObjectId": 1637
+  },
+  "FRTLN": {
+    "catalogueOffsetNm": 1.239,
+    "coordinates": [
+      5.9656875,
+      43.0739375
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_41011aa767a73902",
+    "offsetNm": 2.663,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      5.916667,
+      43.1
+    ],
+    "wpiObjectId": 3191
+  },
+  "GBABD": {
+    "catalogueOffsetNm": 1.141,
+    "coordinates": [
+      -2.044,
+      57.143375
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_013d9878e61ab5d3",
+    "offsetNm": 1.346,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -2.083333,
+      57.15
+    ],
+    "wpiObjectId": 1187
+  },
+  "GBBEL": {
+    "catalogueOffsetNm": 22.047,
+    "coordinates": [
+      -5.88825,
+      54.62275
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_1b15df11c333f615",
+    "offsetNm": 0.549,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -5.9,
+      54.616667
+    ],
+    "wpiObjectId": 1234
+  },
+  "GBIMM": {
+    "catalogueOffsetNm": 2.09,
+    "coordinates": [
+      -0.18362499999999998,
+      53.63125
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_9daa037d8b32a356",
+    "offsetNm": 0.598,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -0.2,
+      53.633333
+    ],
+    "wpiObjectId": 1400
+  },
+  "GBLIV": {
+    "catalogueOffsetNm": 0.0,
+    "coordinates": [
+      -3.0273125,
+      53.4479375
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_602b34f24fe51d00",
+    "offsetNm": 2.119,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -3,
+      53.416667
+    ],
+    "wpiObjectId": 1021
+  },
+  "GBTEE": {
+    "catalogueOffsetNm": 4.049,
+    "coordinates": [
+      -1.1349999999999998,
+      54.65375
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_3424a04b968986a0",
+    "offsetNm": 0.233,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -1.133333,
+      54.65
+    ],
+    "wpiObjectId": 1212
+  },
+  "GRSKG": {
+    "catalogueOffsetNm": 0.761,
+    "coordinates": [
+      22.91575,
+      40.6205
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_5ef5374bead40137",
+    "offsetNm": 1.112,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      22.933333,
+      40.633333
+    ],
+    "wpiObjectId": 849
+  },
+  "HRSPU": {
+    "catalogueOffsetNm": 0.728,
+    "coordinates": [
+      16.4175,
+      43.475375
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_e079394d0c33fb20",
+    "offsetNm": 1.631,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      16.433333,
+      43.5
+    ],
+    "wpiObjectId": 1056
+  },
+  "ILHFA": {
+    "catalogueOffsetNm": 1.306,
+    "coordinates": [
+      35.0265,
+      32.84675
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_32c3a02428449796",
+    "offsetNm": 2.245,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      35,
+      32.816667
+    ],
+    "wpiObjectId": 3655
   },
   "INBOM": {
-    "nodeId": "n_a716f741883e6db6",
     "coordinates": [
       72.7995,
       18.8555
     ],
     "method": "offshore_target_snap",
+    "nodeId": "n_a716f741883e6db6",
+    "offsetNm": 9.132,
     "target": [
       72.65,
       18.8
+    ]
+  },
+  "ISREY": {
+    "catalogueOffsetNm": 0.438,
+    "coordinates": [
+      -21.93575,
+      64.1603125
     ],
-    "offsetNm": 9.132
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_51e9c3cbaa265880",
+    "offsetNm": 0.624,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -21.933333,
+      64.15
+    ],
+    "wpiObjectId": 2285
+  },
+  "ITBRI": {
+    "catalogueOffsetNm": 0.756,
+    "coordinates": [
+      16.86175,
+      41.13375
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_cc2aba72ca9798bb",
+    "offsetNm": 0.224,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      16.866667,
+      41.133333
+    ],
+    "wpiObjectId": 1340
+  },
+  "ITGOA": {
+    "catalogueOffsetNm": 1.23,
+    "coordinates": [
+      8.9585,
+      44.3845
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_57ca9bda7ccb3c50",
+    "offsetNm": 1.427,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      8.933333,
+      44.4
+    ],
+    "wpiObjectId": 1458
+  },
+  "ITNAP": {
+    "catalogueOffsetNm": 1.255,
+    "coordinates": [
+      14.2765625,
+      40.8358125
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_b5cb7c93e771c548",
+    "offsetNm": 0.963,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      14.266667,
+      40.85
+    ],
+    "wpiObjectId": 1498
+  },
+  "ITSPE": {
+    "catalogueOffsetNm": 1.0,
+    "coordinates": [
+      9.838625,
+      44.101375000000004
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_e3fe7767e61b4710",
+    "offsetNm": 0.243,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      9.833333,
+      44.1
+    ],
+    "wpiObjectId": 1465
+  },
+  "ITTAR": {
+    "catalogueOffsetNm": 1.824,
+    "coordinates": [
+      17.19075,
+      40.474
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_78247ac969404358",
+    "offsetNm": 0.611,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      17.2,
+      40.466667
+    ],
+    "wpiObjectId": 1330
+  },
+  "JPOSA": {
+    "catalogueOffsetNm": 3.447,
+    "coordinates": [
+      135.20925,
+      34.59825
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_80fadabf59e327f8",
+    "offsetNm": 11.521,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      135.433333,
+      34.65
+    ],
+    "wpiObjectId": 3180
+  },
+  "JPTYO": {
+    "coordinates": [
+      139.9,
+      34.8
+    ],
+    "method": "offshore_target_snap",
+    "nodeId": "n_7368fc3f3a2596d9",
+    "offsetNm": 7.763,
+    "target": [
+      139.8,
+      34.9
+    ]
+  },
+  "JPUKB": {
+    "catalogueOffsetNm": 2.16,
+    "coordinates": [
+      135.193,
+      34.67525
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_e0d149316d342b55",
+    "offsetNm": 1.586,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      135.183333,
+      34.65
+    ],
+    "wpiObjectId": 74
+  },
+  "KHKOS": {
+    "catalogueOffsetNm": 2.221,
+    "coordinates": [
+      103.502,
+      10.64575
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_01707bb1506d25d9",
+    "offsetNm": 0.751,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      103.5,
+      10.633333
+    ],
+    "wpiObjectId": 620
+  },
+  "KRPUS": {
+    "catalogueOffsetNm": 2.159,
+    "coordinates": [
+      129.09725,
+      34.9485
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_c8b10cf430fba75c",
+    "offsetNm": 9.606,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      129.033333,
+      35.1
+    ],
+    "wpiObjectId": 792
+  },
+  "LKCMB": {
+    "catalogueOffsetNm": 1.99,
+    "coordinates": [
+      79.8355,
+      6.91325
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_e0869cbb5c54e2f8",
+    "offsetNm": 2.359,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      79.85,
+      6.95
+    ],
+    "wpiObjectId": 116
+  },
+  "MACAS": {
+    "catalogueOffsetNm": 1.302,
+    "coordinates": [
+      -7.555,
+      33.6435
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_7c919ae4528d3967",
+    "offsetNm": 4.041,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -7.616667,
+      33.6
+    ],
+    "wpiObjectId": 296
+  },
+  "MYTPP": {
+    "catalogueOffsetNm": 0.995,
+    "coordinates": [
+      103.554,
+      1.355
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_18a31c4aa70a1323",
+    "offsetNm": 0.383,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      103.55,
+      1.35
+    ],
+    "wpiObjectId": 1316
+  },
+  "NLAMS": {
+    "catalogueOffsetNm": 3.66,
+    "coordinates": [
+      5.17325,
+      52.46375
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_c00b60f2e44e054d",
+    "offsetNm": 11.611,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      4.9,
+      52.366667
+    ],
+    "wpiObjectId": 1881
+  },
+  "NLHAR": {
+    "catalogueOffsetNm": 0.602,
+    "coordinates": [
+      5.41175,
+      53.1805
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_bb90b9af3c90afdb",
+    "offsetNm": 0.246,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      5.416667,
+      53.183333
+    ],
+    "wpiObjectId": 1869
+  },
+  "NLRTM": {
+    "coordinates": [
+      3.62525,
+      51.977
+    ],
+    "method": "offshore_target_snap",
+    "nodeId": "n_5d8e2ab0754e5376",
+    "offsetNm": 3.214,
+    "target": [
+      3.7,
+      51.95
+    ]
+  },
+  "NOBGO": {
+    "catalogueOffsetNm": 1.003,
+    "coordinates": [
+      5.2445,
+      60.2065
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_27eed983b5a1ae95",
+    "offsetNm": 11.839,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      5.316667,
+      60.4
+    ],
+    "wpiObjectId": 1231
+  },
+  "NOHAL": {
+    "catalogueOffsetNm": 1.127,
+    "coordinates": [
+      11.1225,
+      59.02575
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_dddb359703a03f21",
+    "offsetNm": 9.755,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      11.383333,
+      59.116667
+    ],
+    "wpiObjectId": 1210
+  },
+  "NOLAR": {
+    "catalogueOffsetNm": 1.128,
+    "coordinates": [
+      10.062000000000001,
+      59.009437500000004
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_37eb853133fe04e8",
+    "offsetNm": 2.597,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      10.033333,
+      59.05
+    ],
+    "wpiObjectId": 1830
+  },
+  "NOSVG": {
+    "catalogueOffsetNm": 0.0,
+    "coordinates": [
+      5.671749999999999,
+      59.020250000000004
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_3f14f53819914229",
+    "offsetNm": 4.036,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      5.75,
+      58.966667
+    ],
+    "wpiObjectId": 1760
+  },
+  "PLGDY": {
+    "catalogueOffsetNm": 2.003,
+    "coordinates": [
+      18.57025,
+      54.53375
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_3fcef89894d63fdd",
+    "offsetNm": 0.708,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      18.55,
+      54.533333
+    ],
+    "wpiObjectId": 1861
+  },
+  "PTLIS": {
+    "coordinates": [
+      -9.6915,
+      38.60575
+    ],
+    "method": "offshore_target_snap",
+    "nodeId": "n_ef2a67bb1496e051",
+    "offsetNm": 2.682,
+    "target": [
+      -9.7,
+      38.65
+    ]
+  },
+  "PTSIE": {
+    "catalogueOffsetNm": 0.0,
+    "coordinates": [
+      -8.8785625,
+      37.941937499999995
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_26c88681774045a5",
+    "offsetNm": 0.743,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -8.866667,
+      37.95
+    ],
+    "wpiObjectId": 1395
+  },
+  "SEGOT": {
+    "catalogueOffsetNm": 1.002,
+    "coordinates": [
+      11.88475,
+      57.68775
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_916978dad219f8a4",
+    "offsetNm": 2.739,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      11.966667,
+      57.7
+    ],
+    "wpiObjectId": 1264
+  },
+  "SEGRH": {
+    "catalogueOffsetNm": 0.501,
+    "coordinates": [
+      18.842875,
+      60.099625
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_d0426300c2646040",
+    "offsetNm": 0.788,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      18.816667,
+      60.1
+    ],
+    "wpiObjectId": 1150
+  },
+  "SEMMA": {
+    "catalogueOffsetNm": 1.002,
+    "coordinates": [
+      12.9660625,
+      55.63425
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_a6da1efba3b62e06",
+    "offsetNm": 1.565,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      13,
+      55.616667
+    ],
+    "wpiObjectId": 1502
+  },
+  "SGSIN": {
+    "coordinates": [
+      103.89075,
+      1.1815
+    ],
+    "method": "offshore_target_snap",
+    "nodeId": "n_496fb37c4f6c2065",
+    "offsetNm": 5.769,
+    "target": [
+      103.8,
+      1.15
+    ]
+  },
+  "TRIZM": {
+    "catalogueOffsetNm": 1.271,
+    "coordinates": [
+      27.15325,
+      38.4495
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_ccf4297956d2a91d",
+    "offsetNm": 1.349,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      27.133333,
+      38.433333
+    ],
+    "wpiObjectId": 758
+  },
+  "TRMER": {
+    "catalogueOffsetNm": 4.993,
+    "coordinates": [
+      34.6265,
+      36.788
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_2ebc6886a2c0aaf8",
+    "offsetNm": 0.791,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      34.633333,
+      36.8
+    ],
+    "wpiObjectId": 404
+  },
+  "USHNL": {
+    "catalogueOffsetNm": 0.934,
+    "coordinates": [
+      -157.87075,
+      21.25025
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_0eeec6c3ebbf118c",
+    "offsetNm": 2.983,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -157.866667,
+      21.3
+    ],
+    "wpiObjectId": 964
+  },
+  "USLAX": {
+    "coordinates": [
+      -118.179,
+      33.62825
+    ],
+    "method": "offshore_target_snap",
+    "nodeId": "n_231260d6aeddb88a",
+    "offsetNm": 6.295,
+    "target": [
+      -118.3,
+      33.6
+    ]
+  },
+  "USLGB": {
+    "catalogueOffsetNm": 0.0,
+    "coordinates": [
+      -118.24825,
+      33.747
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_6bba2fc2232001ea",
+    "offsetNm": 3.455,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -118.183333,
+      33.766667
+    ],
+    "wpiObjectId": 2866
+  },
+  "USNYC": {
+    "coordinates": [
+      -73.53775,
+      40.25075
+    ],
+    "method": "offshore_target_snap",
+    "nodeId": "n_20809a179c07e715",
+    "offsetNm": 0.565,
+    "target": [
+      -73.55,
+      40.25
+    ]
+  },
+  "USPEF": {
+    "catalogueOffsetNm": 0.9,
+    "coordinates": [
+      -79.9385,
+      25.9805
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_705d74ed34118ec2",
+    "offsetNm": 11.992,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      -80.116667,
+      26.1
+    ],
+    "wpiObjectId": 2204
+  },
+  "ZACPT": {
+    "catalogueOffsetNm": 0.0,
+    "coordinates": [
+      18.424,
+      -33.876
+    ],
+    "method": "wpi_2025_main_component_snap",
+    "nodeId": "n_e7dcf1ed0d6f532e",
+    "offsetNm": 2.463,
+    "sourceUrl": "https://gis.unocha.org/server/rest/services/Hosted/global_world_seaport_index_202511/FeatureServer/0",
+    "target": [
+      18.416667,
+      -33.916667
+    ],
+    "wpiObjectId": 434
   }
 }

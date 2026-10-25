@@ -19,8 +19,18 @@ class DocumentReference(Model):
 
 class VoyageAnalysisRequest(Model):
     route_request: RouteRequest
+    demo_research: bool = False
+    route_report: RouteResponse | None = None
+    preview_report_id: str | None = Field(default=None, pattern=r'^[0-9a-f-]{36}$')
     cargo_text: str = Field(default='', max_length=200000)
     document_references: list[DocumentReference] = Field(default_factory=list, max_length=200)
+
+    @model_validator(mode='after')
+    def report_matches_request(self):
+        if self.route_report and (self.route_report.origin != self.route_request.origin or
+                                  self.route_report.destination != self.route_request.destination):
+            raise ValueError('The supplied route report must match the requested ports.')
+        return self
 
 
 class VoyageDetailsRequest(Model):
@@ -65,6 +75,7 @@ class Cost(Model):
 
 class ComplianceFinding(Model):
     id: str = ''
+    demo: bool = False
     category: Category
     severity: Literal['info', 'yellow', 'red'] = 'info'
     status: Literal['confirmed', 'estimated', 'needs_input', 'unverified']
