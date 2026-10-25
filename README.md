@@ -1,106 +1,195 @@
 # SmoothSail
 
-The cargo compliance flow, Atlas ingestion, specialist agents and cited chat are documented in [route-planning-api/COMPLIANCE.md](route-planning-api/COMPLIANCE.md).
+**Plan a container voyage and find out what could stop it, before the ship leaves port.**
 
-A dot-matrix globe and maritime route planner. Enter two supported ports and a departure date, compare **Fastest**, **Cheapest**, and **Lowest CO₂**, then open a route on the map.
+SmoothSail compares the fastest, cheapest and lowest-CO₂ routes between two ports, using live wind, wave and current forecasts. AI agents then check the voyage and its cargo for compliance risks. Every finding cites the official source it is based on.
 
-The frontend uses vanilla JavaScript, Vite and Mapbox GL. The Python routing service, MongoDB integrations and Cloudflare deployment live in [`route-planning-api/`](route-planning-api/README.md).
+---
 
-## Run the frontend
+## The problem
 
-Use Node.js 22+:
+Before a ship sails, someone has to answer two questions:
+
+1. **Which route?** The shortest line on a map is rarely the best voyage. Weather slows ships down. Canals add tolls and waiting time. Going faster burns more fuel and emits more CO₂, which costs money now that shipping is part of the EU Emissions Trading System.
+2. **Can this voyage go ahead as planned?** One voyage can be subject to EU carbon allowances, emission control areas, customs declarations, sanctions screening, war-risk insurance areas and dangerous-goods rules. All of these depend on the route, the cargo and the specific ship.
+
+Today these answers are spread across forecast portals, canal tariff PDFs, customs websites, sanctions lists and regulation texts. Pulling them together is slow manual work. Missing one item, such as an undeclared lithium battery shipment or a vessel on a sanctions list, can mean fines, delays or a detained ship.
+
+## The solution
+
+SmoothSail puts route planning and compliance screening in one flow:
+
+| Step | What you do | What SmoothSail does |
+|---|---|---|
+| 1. Plan | Pick two ports and a departure date | Calculates the **Fastest**, **Cheapest** and **Lowest CO₂** voyages, with ETA, distance, fuel, cost and emissions for each |
+| 2. Explore | Open a route on the map | Draws the exact path with wave and wind overlays and plays the voyage back over time |
+| 3. Check | Optionally upload a cargo manifest and enter the ship's IMO number | Runs five specialist AI agents in parallel: **security, environment, trade, sanctions and dangerous goods**. A sixth agent researches **port congestion** |
+| 4. Understand | Read the findings | Each finding has a severity, a recommended action, any cost estimate and numbered citations to official sources. You can ask follow-up questions about it |
+| 5. Adapt | If a port is congested, click **Reroute** | Suggests the nearest alternative port and lets you compare the original and alternative routes side by side |
+| 6. Act | Export | Produces a voyage checklist as a PDF or a zip that includes the source documents |
+
+Findings arrive as each agent finishes, so the route appears quickly and compliance results fill in behind it.
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        UI["Vite + Mapbox GL<br/>vanilla JS"]
+    end
+    UI -- "JSON / NDJSON stream" --> CF["Cloudflare Worker<br/>gateway"]
+    CF --> API["FastAPI service<br/>(Python)"]
+
+    API -- "graph, ports, forecasts,<br/>regulations, caches" --> DB[("MongoDB Atlas")]
+    API -- "6 agents" --> G["Gemini 4 Argon"]
+    API -- "web research" --> TF["TinyFish<br/>search + fetch"]
+    API -. "every 6 h" .-> WX["ECMWF wind<br/>Copernicus waves + currents<br/>IMF PortWatch"]
+```
+
+### 1. Route planning
+
+A route request runs these steps in a single call, with no job queue and no polling:
+
+1. **Resolve the ports.** Ports come from UN/LOCODE, cross-checked against the World Port Index. Each port has an offshore approach point, so routes start at sea rather than at a city centre.
+2. **Load the sea network.** The network is Eurostat's **SeaRoute** graph, held in **networkx**. Any edge that crosses land in the high-resolution **GSHHG** coastlines is removed. Only the reviewed Suez and Panama canal corridors are allowed through.
+3. **Generate candidate paths.** Paths are weighted separately for time, cost, fuel and weather exposure, and canal bypasses are tried as well.
+4. **Simulate each path.** Each path is run at 12, 14 and 16 knots. Waves slow the ship through the water, currents change its speed over ground, and canals add tolls and waiting time.
+5. **Pick the winners.** The service keeps the fastest, cheapest and lowest-CO₂ result and returns one self-contained report with geometry, timed segments, cost and emission breakdowns and forecast coverage.
+
+Forecasts are downloaded by a background job every six hours and cached in Atlas. A route request never waits on a weather download.
+
+### 2. Data in MongoDB Atlas
+
+All reference data lives in one Atlas database. That one database also provides the search engine, the geospatial database and the file store:
+
+| Atlas feature | What SmoothSail uses it for |
+|---|---|
+| **Atlas Search** | Port autocomplete that tolerates typos ("Roterdam" finds Rotterdam). Full-text search over regulation passages for the agents |
+| **Geospatial indexes** (`$geoNear`, `$geoIntersects`) | Finding the nearest alternative port. Checking which maritime zones and restrictions a route crosses |
+| **GridFS** | Large forecast grids, detailed coastline geometry and the original regulation PDFs |
+| **TTL indexes** | Expiring caches for congestion research and external API responses |
+| **Flexible documents** | Adding new data sources (PortWatch, sanctions lists, tariffs) without schema migrations |
+
+Voyages, cargo text and uploaded documents are **never stored**. They exist only in memory for the length of the request.
+
+### 3. Agent orchestration with Gemini 4 Argon
+
+When you ask for a compliance check (`POST /voyages/analyse`), the backend:
+
+1. **Starts everything at once.** Route calculation, Atlas reference retrieval, public API lookups and congestion research all begin when the request arrives.
+2. **Builds one shared voyage brief** once the routes are ready. The brief covers every route, the ports, passages, costs, emissions, weather coverage and the cargo. The backend also runs deterministic Python calculations, such as EU ETS allowance estimates and zone intersections.
+3. **Fans out to five Argon specialists in parallel**, one per category, each with its own focused prompt. Each specialist can call read-only tools:
+   - `research_web`: TinyFish search and page fetch
+   - `lookup_reference`: Atlas Search over stored regulation passages
+   - `read_route_report`: detailed geometry and timed segments, read only when needed
+4. **Streams results as NDJSON**, sending each assessment to the browser as soon as it is done.
+
+Each specialist gets at most **two model turns**. In the first turn it can call up to four tools, which run in parallel. In the second turn the tools are removed and it must answer in a strict JSON schema.
+
+**Trust rules.** The model never has the final word. The backend checks every answer before it reaches the screen:
+
+- A web citation must come from the tool results, point to an approved official domain, and **quote a passage that actually appears on the fetched page**.
+- A finding without official evidence is downgraded to *unverified*.
+- Costs must come from a Python calculation, never from the model.
+- A sanctions-list match is shown as *estimated*, never *confirmed*. A name match alone does not prove a voyage is prohibited.
+- If a check fails, it is reported as unavailable. A failed check never counts as clearance.
+
+Built-in limits keep cost and load under control: 6 concurrent model calls, 60 model calls per hour and 2 analyses at a time.
+
+---
+
+## Tech stack
+
+| Layer | Tools |
+|---|---|
+| Frontend | Vanilla JavaScript, Vite, Mapbox GL, Web Workers with a WebGL wave layer, d3-contour |
+| Backend | Python 3.11+, FastAPI, networkx, xarray, pydantic, uv |
+| Data | MongoDB Atlas: Atlas Search, geospatial indexes, GridFS, TTL indexes |
+| AI | Gemini 4 Argon specialist agents, TinyFish web search and fetch |
+| Data sources | UN/LOCODE, World Port Index, Eurostat SeaRoute, GSHHG, Natural Earth, ECMWF Open Data, Copernicus Marine, IMF PortWatch, canal authority tariffs, OSRM |
+| Hosting | Cloudflare Workers gateway in front of the Python service |
+
+---
+
+## Run it locally
+
+### Frontend
+
+Requires Node.js 22 or later.
 
 ```sh
 npm ci
-cp .env.example .env.local   # fresh checkout only; preserve existing local settings
-# Set VITE_MAPBOX_ACCESS_TOKEN to a Mapbox public token.
+cp .env.example .env.local      # add your Mapbox public token
 npm run dev -- --port 3200
 ```
 
-Open http://localhost:3200. Scroll or click “Plan a shipment” to begin.
+Open http://localhost:3200. By default the frontend uses the deployed API.
 
-The public API defaults to **https://tideline-api.paramsachdeva81.workers.dev**. To use another backend, set `VITE_ROUTE_API_BASE_URL` in `.env.local` and restart Vite. `VITE_*` values are public browser configuration. MongoDB credentials, Copernicus credentials and internal tokens must only be configured on the backend.
+### Backend (optional)
 
-```sh
-npm test
-npm run build
-npm run preview
-```
-
-Build output is `dist/`. The Mapbox bundle is about 1.9 MB before compression; Vite reports a bundle-size warning. Static land-dot assets are larger and load progressively as the globe is zoomed.
-
-## Request and rendering flow
-
-1. `src/api/client.js` fetches `GET /ports?limit=50`. The deployed service currently returns ten supported ports. The frontend caches this catalogue in memory; it does not advertise unsupported demo ports.
-2. The form validates selected ports, prevents identical endpoints and checks the departure date. Today omits `departureTime` so the API uses the current time; a future date uses midnight UTC.
-3. A single `POST /routes` returns all available objectives:
-
-   ```json
-   { "origin": "NLRTM", "destination": "SGSIN" }
-   ```
-
-4. While calculating, the UI displays actual elapsed time. There is no fake percentage, delayed animation, polling or browser-side routing calculation. Cancel aborts the browser request and prevents a late result from replacing another search; work already running on the server may finish.
-5. `src/data/routes.js` keeps the **complete report** in memory, including segments, sources, vessel assumptions, forecast coverage and compliance metadata. Its view adapter adds labels but does not recalculate fuel, cost, CO₂ or ETA. Refreshing the page clears the report; no voyage history is persisted.
-6. The comparison cards show `durationHours`, `distanceNm`, the API's `eta`, `cost.totalUsd`, `cost.fuelTonnes` and `emissions.co2Tonnes`. Cost is USD for the **entire vessel voyage**, not per day or per container. “Lowest CO₂” refers to estimated tank-to-wake emissions, not every environmental impact.
-7. Both **View route** and **Select this route** open the chosen API ID on the map. The renderer uses `geometry` directly, preserving every waypoint and `MultiLineString` date-line split. It adds no smoothing curve or fabricated stops. A separate, explicitly simulated ship follows the API’s timed segments without changing the route geometry. A route crossing the date line appears at both edges of the flat world map, with no line connecting across the world.
-
-The selected-route map uses [Mapbox Light](https://www.mapbox.com/maps/light), with pale water, fine coastlines, a pink selected route and yellow alternatives. Place names, roads, buildings and points of interest are hidden to keep the maritime view minimal; boundary lines remain visible. Its Mercator projection matches the forecast raster so weather colours stay aligned with coastlines. Panning is limited to the forecast grid’s populated latitude envelope (currently about 60°S–70°N). Entirely empty polar rows are excluded, and the zoom-out limit adapts to both that envelope and the viewport size, including portrait screens. The limit stays fixed during playback; scrolling stops at the boundary without snapping back to the route. Zooming in stops at level 8. If no usable wave grid is supplied, normal world bounds apply. Missing cells inside the envelope remain unknown. The landing globe retains its original dots. Wave colours sit above water and below the basemap labels and route. Alternatives can overlap because different objectives may select the same geography and speed. Endpoint markers use the API's offshore approach coordinates, which are not berth locations.
-
-**Info** on the cards remains a disabled placeholder. The map shows a compact route summary with transit time, distance, estimated cost, emissions and ETA. **Preview** starts the voyage animation (90 seconds at 1×), with pause/resume, replay after arrival, and 1×/1.5×/2×/4× speed controls. The ship follows every timed segment and stops during assumed canal waits. It is a simulated position, not live AIS. Playback pauses when the map or browser tab is hidden and respects reduced-motion preferences.
-
-Open **Overlays** to access the map layers. The **Wave forecast** switch shows the API’s global significant-wave-height grid at the selected voyage time, including oceans away from the route. The grid has 721 × 257 samples over the available forecast latitude range. A worker prepares one small, premultiplied RGBA texture per forecast frame; a Mapbox custom WebGL layer uploads each texture once and blends adjacent frames on the GPU. Zooming and playback no longer redraw or upload large canvases. Only five frames are retained, upcoming frames are prefetched, and rapid time changes prioritise the latest selection instead of building a queue of old work. Hidden overlays stop requesting textures.
-
-The display uses a bounded Gaussian colour blur and GPU linear filtering, with a separate GSHHG coastline mask keeping land white. A faint visual halo can extend up to three grid cells beyond samples, but it does not create numeric coverage or additional forecast precision. Large missing areas stay transparent. Blue/sea-glass through sand/rose represents increasing significant wave height in metres. If the voyage playhead passes the forecast window, the map holds the last broadly covered snapshot and labels its actual valid date; it does **not** extrapolate weather. Entirely empty trailing frames and sparse regional tails with less than half the peak grid coverage are excluded from this global display window. Internal missing frames remain missing. Route conditions and numeric wave sampling beyond the forecast window remain unknown. Loading and display failures are labelled separately from missing data.
-
-A separate **High seas** switch draws subtle filled amber 4 m and rose 6 m regions, without outlines or text labels. A dedicated worker contours a time-interpolated scalar field at up to 12 Hz, coalesces obsolete requests, and defers geometry updates while the camera is moving. Existing regions still scale with the map at its rendering rate. These are forecast display thresholds, not confirmed storms or official warnings. The forecast timestamp remains attached to each feature, including when the display holds its last snapshot. Scrolling eases around the pointer. Reduced-motion preferences and the viewport zoom-out limit are respected. These display operations do not change route calculations.
-
-The coastline mask in `public/data/land-mask.geojson` is derived from the existing GSHHG 2.3.7 high-resolution display data, simplified by 0.005° and rounded to four decimals for display only. It does not replace the backend’s unsimplified navigation screening geometry. Rebuild it with `scripts/build-land-mask.py`; source attribution is shown on the map and the original license texts are in `public/licenses/`. The renderer waits for this mask before showing the blurred field.
-
-**Restricted areas** renders verified, non-cancelled polygon notices supplied in the route report with a muted hatch, dashed border, name, validity interval and source link. Areas are filtered against the voyage playback time. When no verified polygons are supplied, the toggle is disabled and says data unavailable; this does not mean the route is unrestricted. The current catalogue has no verified restriction polygons. A live cyclone-warning feed is not connected. Weather coverage is shown explicitly, and missing conditions are never described as calm or safe. Compliance is not assessed.
-
-Network, timeout, startup, invalid-input and empty-result failures produce a retryable message. API calls omit cookies and use the service's existing cross-origin support.
-
-## Backend
-
-### Port congestion issues
-
-Submitting a route starts `POST /port-congestion` alongside route calculation. The map reuses that research promise and displays results when ready. A small blue **1 issue** pill appears above a port only for a supported, current **mild** or **high** result. Clicking it opens a one-item list; selecting **Mild congestion** or **High congestion** expands the summary, observation date, source citations and closest supported alternative port. Alternatives are ranked by straight-line distance using Atlas geospatial queries and exclude both voyage endpoints; congestion at the alternative is not assumed lower. **Reroute** opens the planning form, replaces the affected endpoint, keeps the other endpoint and departure day, and starts a fresh route calculation with congestion research in parallel. Past departure days become today. The list uses a yellow/red status dot. Google search-suggestion widgets are not rendered. Low/unknown results have no alert badge; unknown never means the port is clear. Results describe current conditions, not conditions at the voyage's future arrival time.
-
-The backend makes one Gemini 4 Argon Google Search request for uncached ports, accepts qualitative operational reporting as well as measurements, and rejects unsupported/stale conclusions. Research never delays route rendering and has no application-imposed elapsed-time cutoff in the frontend, backend or gateway. Provider/network failures can still end a request. Results remain attached to the submitted journey and cache for up to 30 minutes. Without `GEMINI_API_KEY`, the endpoint immediately returns `unknown` and no alerts are fabricated.
-
-Set `GEMINI_API_KEY` only in the backend environment (never in a `VITE_` variable), then restart the backend. See the [backend congestion documentation](route-planning-api/README.md#port-congestion-search) for the input contract, Mongo storage, evidence rules and Cloudflare secret configuration. The key is not required to run the UI or tests. Live model quality/latency needs testing once credentials are available.
-
-See [`route-planning-api/README.md`](route-planning-api/README.md) for data sources, Atlas collections/indexes/GridFS, forecast refresh, canal assumptions, costs, API schema and deployment.
+Requires Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
 
 ```sh
 cd route-planning-api
 uv sync --extra dev --extra providers
-cp .env.example .env   # fresh checkout only
-uv run python -m scripts.dev
+cp .env.example .env            # Atlas, Copernicus and Gemini keys go here, never in VITE_ variables
+.venv/bin/python -m uvicorn service.main:app --host 127.0.0.1 --port 8766
 ```
 
-The local API listens at http://127.0.0.1:8765, with documentation at `/docs`. For a same-origin local preview, run the API on port **8766** (`uv run uvicorn service.main:app --host 127.0.0.1 --port 8766`) and set `VITE_ROUTE_API_BASE_URL=/local-api` in `.env.local`. Vite proxies `/local-api` to that local service, avoiding cross-origin requirements during development. Production builds should use the deployed API URL instead. Demo mode is an explicitly simulated Atlantic network; use `TIDELINE_MODE=mongo` and your existing Atlas connection for the real imported network. The default frontend uses the already deployed production API.
+Then set `VITE_ROUTE_API_BASE_URL=/local-api` in `.env.local`. Vite proxies `/local-api` to port 8766.
 
-This repository contains service source, importer/refresh scripts, tests, Docker/Wrangler configuration, small planning references and the public-domain Natural Earth fallback mask needed by demo tests. It excludes credentials, raw archives, forecast downloads, large generated geography, database caches and reports. Production graph, reference and forecast data are retrieved from Atlas.
+- `TIDELINE_MODE=demo` runs offline on a small built-in network.
+- `TIDELINE_MODE=mongo` uses the full Atlas dataset.
 
-Cloudflare commands run inside `route-planning-api/` or its `cloudflare/` subdirectory, as documented there. Do not run deployment commands from the frontend root.
+### Demo walkthrough
+
+Set `VITE_DEMO_RESEARCH=true` in `.env.local` and plan **Le Havre (FR LEH) → Singapore (SG SIN)**.
+
+Routing, weather and costs stay live. The compliance findings for this route are researched and hardcoded, with citations to official sources (EU ETS, FuelEU, the Mediterranean ECA, Singapore Customs, MPA, IMDG and the sanctions lists).
+
+Upload `SMOOTHSAIL cargo manifest mock.pdf` and enter IMO `9912340` to see findings specific to that cargo and vessel. The manifest lists 200 lithium-ion battery modules (UN 3480, Class 9). The IMO number fails its check digit, and the app flags that.
+
+### Tests
+
+```sh
+npm test                                              # frontend
+cd route-planning-api && TIDELINE_MODE=demo uv run --extra dev pytest -q   # backend
+```
+
+---
 
 ## Project layout
 
 ```text
-src/api/                     Public route-service client
-src/data/                    Port catalogue, form state, report and formatting
-src/app/screens/             Landing, search, comparison and map screens
-src/globe/                   Globe and exact API geometry rendering
-src/tokens.css               Shared visual design tokens
-public/data/                 Precomputed Natural Earth land-dot assets
-tests/                       Frontend contract/error/geometry tests
-INTEGRATION.md               Original supplied frontend handover, preserved verbatim
-route-planning-api/          Python API, Atlas tools and Cloudflare gateway
+src/
+  api/          HTTP client for the route service
+  app/          Screens (landing, search, results, map), cargo intake, compliance chat, checklist
+  data/         Route, compliance, congestion and reroute state and formatting
+  globe/        Landing globe, flat map, wave and wind overlays, voyage playback, port alerts
+tests/          Frontend tests
+route-planning-api/
+  service/      FastAPI app, routing, simulation, compliance agents, Atlas data layer
+  scripts/      Data import, forecast refresh, Atlas setup, deployment, route verification
+  cloudflare/   Worker gateway
+  tests/        Backend tests
 ```
 
-`INTEGRATION.md` is the supplied **pre-integration** handover. Its references to placeholder routes, a Next.js MVP, missing tests and dead-end buttons describe the old prototype. This README and the current source describe the implemented HTTP API integration.
+More detail:
 
-## Data and map attribution
+- [route-planning-api/README.md](route-planning-api/README.md) covers data sources, Atlas collections and indexes, the cost model, the API schema and deployment.
+- [route-planning-api/COMPLIANCE.md](route-planning-api/COMPLIANCE.md) covers the compliance endpoints, the streaming event format and the evidence rules.
 
-Map rendering: Mapbox GL; the selected-route basemap is Mapbox Light, with Mapbox/OpenStreetMap attribution in the map. The landing globe’s dot geometry and the backend fallback mask use [Natural Earth](https://www.naturalearthdata.com/), public-domain geographic data. Production land screening uses GSHHG with its own licence and provenance described in the backend README. Display dots are an artistic representation and are not the collision geometry used by the routing service.
+---
+
+## Limitations
+
+- Fuel, cost and ETA are **planning estimates for a generic 3,500 TEU container ship**, not measurements for a particular vessel.
+- Routes come from a heuristic network search, not a globally optimal solver. They are not navigation or pilotage plans.
+- Compliance findings are **screening aids, not legal advice or clearance**. Missing information is shown as "needs input", never as "all clear".
+- Congestion results describe current port conditions, not conditions when the ship arrives.
+
+## Attribution
+
+The map is rendered with Mapbox GL using the Mapbox Light style (© Mapbox, © OpenStreetMap). The globe dots and the fallback land mask use public-domain [Natural Earth](https://www.naturalearthdata.com/) data. Routing land screening uses GSHHG. Forecasts come from ECMWF Open Data and Copernicus Marine. The sea network is Eurostat SeaRoute.
