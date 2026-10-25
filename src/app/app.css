@@ -1095,7 +1095,7 @@ button.landing__scroll-cue:focus-visible { outline: var(--border-width) solid va
 }
 
 /* Port panels follow their projected port and size to the available side. */
-.port-popup { z-index: 3; max-width: none; transform: none; }
+.port-popup { z-index: 10; max-width: none; transform: none; }
 .port-popup[hidden] { display: none; }
 .port-popup .mapboxgl-popup-content { box-sizing: border-box; width: 100%; overscroll-behavior: contain; }
 .port-popup .mapboxgl-popup-close-button { top: 8px; right: 8px; width: 26px; height: 26px; font-size: 21px; }

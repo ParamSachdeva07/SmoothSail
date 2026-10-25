@@ -143,14 +143,6 @@ Then set `VITE_ROUTE_API_BASE_URL=/local-api` in `.env.local`. Vite proxies `/lo
 - `TIDELINE_MODE=demo` runs offline on a small built-in network.
 - `TIDELINE_MODE=mongo` uses the full Atlas dataset.
 
-### Demo walkthrough
-
-Set `VITE_DEMO_RESEARCH=true` in `.env.local` and plan **Le Havre (FR LEH) → Singapore (SG SIN)**.
-
-Routing, weather and costs stay live. The compliance findings for this route are researched and hardcoded, with citations to official sources (EU ETS, FuelEU, the Mediterranean ECA, Singapore Customs, MPA, IMDG and the sanctions lists).
-
-Upload `SMOOTHSAIL cargo manifest mock.pdf` and enter IMO `9912340` to see findings specific to that cargo and vessel. The manifest lists 200 lithium-ion battery modules (UN 3480, Class 9). The IMO number fails its check digit, and the app flags that.
-
 ### Tests
 
 ```sh

@@ -41,7 +41,7 @@ export function createCongestionCard(port, assessment, onReroute) {
     assessment.level === 'high' ? 'High congestion' : 'Mild congestion'));
   const body = node('div', 'congestion-card__details');
   body.append(formattedText('congestion-card__summary', assessment.summary));
-  if (!assessment.demo) body.append(node('p', 'congestion-card__meta',
+  body.append(node('p', 'congestion-card__meta',
     `${assessment.basis === 'measured' ? 'Measured conditions' : 'Reported conditions'} · ${dateLabel(assessment.evidenceAsOf)}`));
   const alt = assessment.alternativePort;
   const alternative = node('div', 'congestion-card__alternative');
@@ -73,7 +73,7 @@ export function createCongestionCard(port, assessment, onReroute) {
     }
   } else alternative.append(node('p', '', 'No other supported port is available.'));
   body.append(alternative);
-  if (!assessment.demo) {
+  {
     const sources = node('div', 'congestion-card__sources');
     sources.append(node('p', 'congestion-card__eyebrow', 'Sources'));
     sources.append(sourceList(assessment.sources ?? []));

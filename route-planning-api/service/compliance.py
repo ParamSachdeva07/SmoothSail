@@ -14,7 +14,6 @@ from pymongo.errors import PyMongoError
 from service.compliance_agents import PROMPTS, AgentRunner
 from service.compliance_calculations import calculate_compliance
 from service.compliance_data import ComplianceStore
-from service.demo_research import assessments as demo_assessments, enabled as demo_enabled
 from service.compliance_models import CATEGORIES
 from service.compliance_providers import fetch_voyage_apis
 from service.congestion_models import CongestionRequest
@@ -81,12 +80,11 @@ class ComplianceService:
         analysis_id = str(uuid4())
         context_token = secrets.token_urlsafe(32)
         calculate_routes = calculate_routes or calculate
-        demo = demo_enabled(body)
         route_context = None
         try:
             # Start public-data acquisition/research at submission, alongside route calculation.
             route_context = asyncio.get_running_loop().create_future()
-            congestion = None if demo else asyncio.create_task(self.congestion.assess(CongestionRequest(
+            congestion = asyncio.create_task(self.congestion.assess(CongestionRequest(
                 port_ids=[body.route_request.origin, body.route_request.destination]), route_context=route_context))
             preliminary = {'routeReport': {'origin': body.route_request.origin, 'destination': body.route_request.destination,
                 'departureTime': (body.route_request.departure_time or datetime.now(UTC)).isoformat(),
@@ -95,7 +93,7 @@ class ComplianceService:
                     if body.route_request.compliance_context else None}}}, 'cargoText': body.cargo_text,
                 'suppliedVesselInformation': body.route_request.compliance_context.vessel.model_dump(mode='json', by_alias=True)
                     if body.route_request.compliance_context and body.route_request.compliance_context.vessel else None}
-            sources = None if demo else asyncio.create_task(asyncio.to_thread(self.store.retrieve, preliminary))
+            sources = asyncio.create_task(asyncio.to_thread(self.store.retrieve, preliminary))
             preview = self.get_preview(body.preview_report_id, body.route_request) if body.preview_report_id else None
             supplied_report = body.route_report or preview
             if supplied_report is None and body.preview_report_id and calculate_routes is calculate:
@@ -104,8 +102,8 @@ class ComplianceService:
                 calculate_routes = lambda request, repository: calculate(request, repository, include_display=False)
             routes = asyncio.create_task(asyncio.sleep(0, result=supplied_report) if supplied_report is not None
                 else asyncio.to_thread(calculate_routes, body.route_request, self.repository))
-            apis = None if demo else asyncio.create_task(fetch_voyage_apis(body, self.store))
-            tasks.extend(task for task in (congestion, sources, routes, apis) if task is not None)
+            apis = asyncio.create_task(fetch_voyage_apis(body, self.store))
+            tasks.extend((congestion, sources, routes, apis))
             yield {'type': 'started', 'analysisId': analysis_id, 'categories': list(CATEGORIES)}
             while not routes.done():
                 done, _ = await asyncio.wait([routes], timeout=10)
@@ -114,23 +112,6 @@ class ComplianceService:
             report = routes.result()
             context = shared_context(report, body.cargo_text, body.document_references,
                 body.route_request.compliance_context)
-            if demo:
-                self.contexts[analysis_id] = {'context': context, 'data': {'evidence': []},
-                    'token': context_token, 'findings': {}, 'checks': {}, 'demo_research': True,
-                    'expires': time.monotonic() + 1800}
-                while len(self.contexts) > 2:
-                    self.contexts.popitem(last=False)
-                if supplied_report is None:
-                    yield {'type': 'route_report', 'analysisId': analysis_id, 'report': context['routeReport']}
-                yield {'type': 'context_ready', 'analysisId': analysis_id, 'contextToken': context_token,
-                       'contextSha256': context['contextSha256'], 'demo': True,
-                       'coverage': {'demoResearch': 'synthetic_not_verified'}}
-                for result in demo_assessments(context['routeReport'], context['contextSha256']):
-                    self.record_assessment(self.contexts[analysis_id], result)
-                    yield {'type': 'assessment', **result}
-                yield {'type': 'complete', 'analysisId': analysis_id,
-                       'seconds': round(time.monotonic() - started, 3)}
-                return
             try:
                 data = await sources
                 data['zones'] = await asyncio.to_thread(self.store.route_zones, context['routeReport'], data)
@@ -211,21 +192,6 @@ class ComplianceService:
         saved = self.contexts.get(body.analysis_id)
         if not saved or saved['expires'] <= time.monotonic() or not secrets.compare_digest(saved['token'], body.context_token):
             yield {'type': 'error', 'message': 'This voyage context expired. Calculate routes again.'}
-            return
-        if saved.get('demo_research'):
-            vessel = body.vessel.model_dump(mode='json', by_alias=True) if body.vessel else None
-            context = shared_context(saved['context']['routeReport'], body.cargo_text,
-                                     body.document_references, {'vessel': vessel})
-            saved.update(context=context, expires=time.monotonic() + 1800)
-            yield {'type': 'context_ready', 'analysisId': body.analysis_id,
-                   'contextToken': body.context_token, 'demo': True,
-                   'contextSha256': context['contextSha256']}
-            for result in demo_assessments(context['routeReport'], context['contextSha256'],
-                                           body.cargo_text, body.document_references,
-                                           body.vessel.imo_number if body.vessel else None):
-                self.record_assessment(saved, result)
-                yield {'type': 'assessment', **result}
-            yield {'type': 'complete', 'analysisId': body.analysis_id}
             return
         if self.active >= self.settings.compliance_max_analyses or saved.get('updating'):
             yield {'type': 'error', 'message': 'Another analysis is running. Please try again shortly.'}

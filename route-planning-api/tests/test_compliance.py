@@ -14,7 +14,6 @@ from service.compliance_agents import PROMPTS, AgentRunner
 from service.compliance_calculations import calculate_compliance
 from service.compliance_data import applicable, official_url
 from service.compliance_models import ChatRequest, ComplianceFinding, VoyageAnalysisRequest, VoyageDetailsRequest
-from service.demo_research import assessments as demo_assessments
 from service.models import RouteRequest
 from service.config import Settings
 from service.documents import extract_document
@@ -332,78 +331,6 @@ def test_orchestrator_returns_routes_before_slow_agents_and_preserves_parallel_l
         assert len([e for e in rest if e['type'] == 'assessment']) == 6
         assert rest[-1]['type'] == 'complete'
         assert service.active == 0
-    asyncio.run(run())
-
-
-def test_demo_research_is_scoped_to_le_havre_singapore_and_keeps_real_route_result():
-    class UnexpectedResearch:
-        async def assess(self, *_args, **_kwargs):
-            raise AssertionError('Demo research must not call a live agent')
-
-    class UnexpectedCongestion:
-        async def assess(self, *_args, **_kwargs):
-            raise AssertionError('Demo congestion must not call a live agent')
-
-    service = ComplianceService(SimpleNamespace(), config(), UnexpectedCongestion(), UnexpectedResearch())
-    live_report = report() | {'origin': 'FRLEH', 'destination': 'SGSIN'}
-    body = VoyageAnalysisRequest(route_request={'origin': 'FRLEH', 'destination': 'SGSIN'}, demo_research=True)
-
-    async def run():
-        events = [event async for event in service.stream(body, lambda *_: live_report)]
-        assert next(e for e in events if e['type'] == 'route_report')['report'] is live_report
-        checks = [e for e in events if e['type'] == 'assessment']
-        assert len(checks) == 6 and all(e['demo'] for e in checks)
-        assert all(f['demo'] and f['status'] == 'confirmed' and f['scope']['routeIds'] == ['r1']
-                   and f['evidence'] and all(e['authority'] == 'official' for e in f['evidence'])
-                   for check in checks for f in check['findings'])
-        congestion = next(e for e in checks if e['category'] == 'congestion')
-        assert {a['portId'] for a in congestion['assessments']} == {'FRLEH', 'SGSIN'}
-        assert congestion['assessments'][1]['alternativePort']['portId'] == 'MYTPP'
-        assert service.active == 0
-
-    asyncio.run(run())
-
-
-def test_demo_details_use_mock_manifest_and_supplied_imo_with_official_citations():
-    text = 'SS-2026-001 SPE-LFP-2026 UN 3480 Shanghai CNSHA Rotterdam NLRTM'
-    refs = [{'id': f'upload:mock:{page}', 'title': 'Mock cargo manifest.pdf', 'page': page,
-             'text': f'Mock document page {page}'} for page in (1, 2, 4, 5, 7, 8, 9, 11, 12, 13, 14, 16)]
-    results = list(demo_assessments(report() | {'origin': 'FRLEH', 'destination': 'SGSIN'},
-                                    'context-hash', text, refs, '9912340'))
-    assert len(results) == 6 and all(item['demo'] for item in results)
-    findings = [finding for item in results for finding in item['findings']]
-    assert any('fails the check digit' in item['title'] and item['severity'] == 'red' for item in findings)
-    assert any('UN 3480' in item['title'] and '1,024 kWh' in item['explanation'] for item in findings)
-    assert any('9912340' in item['explanation'] and item['scope']['vesselImo'] == '9912340'
-               for item in findings)
-    assert not any('demo' in item['explanation'].lower() for item in findings)
-    assert all(item['status'] == 'confirmed' and any(source['authority'] == 'official' for source in item['evidence'])
-               for item in findings)
-    assert all(f'[{source["id"]}]' in item['explanation'] + item['recommendedAction'] for item in findings for source in item['evidence']
-               if source['authority'] == 'official')
-    for finding in findings: ComplianceFinding.model_validate(finding)
-
-
-def test_demo_detail_stream_replaces_generic_findings_after_document_upload():
-    class Unused:
-        async def assess(self, *_args, **_kwargs):
-            raise AssertionError('Demo detail stream must not call a live agent')
-
-    service = ComplianceService(SimpleNamespace(), config(), Unused(), Unused())
-    live_report = report() | {'origin': 'FRLEH', 'destination': 'SGSIN'}
-    body = VoyageAnalysisRequest(route_request={'origin': 'FRLEH', 'destination': 'SGSIN'}, demo_research=True)
-
-    async def run():
-        initial = [event async for event in service.stream(body, lambda *_: live_report)]
-        token = next(event for event in initial if event['type'] == 'context_ready')
-        details = VoyageDetailsRequest(analysis_id=token['analysisId'], context_token=token['contextToken'],
-            cargo_text='SS-2026-001 SPE-LFP-2026 3480', vessel={'imoNumber': '9912340'})
-        updated = [event async for event in service.stream_details(details)]
-        sanctions = next(item for item in updated if item.get('category') == 'sanctions')
-        assert any('9912340' in f['explanation'] for f in sanctions['findings'])
-        assert next(e for e in updated if e['type'] == 'context_ready')['contextSha256'] != token['contextSha256']
-        assert service.active == 0
-
     asyncio.run(run())
 
 

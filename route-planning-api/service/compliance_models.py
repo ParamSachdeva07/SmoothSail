@@ -19,7 +19,6 @@ class DocumentReference(Model):
 
 class VoyageAnalysisRequest(Model):
     route_request: RouteRequest
-    demo_research: bool = False
     route_report: RouteResponse | None = None
     preview_report_id: str | None = Field(default=None, pattern=r'^[0-9a-f-]{36}$')
     cargo_text: str = Field(default='', max_length=200000)
@@ -75,7 +74,6 @@ class Cost(Model):
 
 class ComplianceFinding(Model):
     id: str = ''
-    demo: bool = False
     category: Category
     severity: Literal['info', 'yellow', 'red'] = 'info'
     status: Literal['confirmed', 'estimated', 'needs_input', 'unverified']

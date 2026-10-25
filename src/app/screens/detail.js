@@ -167,9 +167,7 @@ export function createDetailScreen({ getSelectedRouteId, onSelectRoute, onBack }
       const indicator = document.createElement('span'); indicator.className = 'compliance-progress__indicator'; indicator.setAttribute('aria-hidden', 'true');
       if (check.phase === 'done') {
         indicator.innerHTML = icon('check', 12);
-        status.title = activeState.checks[category]?.demo
-          ? 'Synthetic demo data. Open the port issues to read illustrative findings.'
-          : 'Research complete. Open the port issues to read findings.';
+        status.title = 'Research complete. Open the port issues to read findings.';
         status.append(indicator);
       } else {
         status.append(indicator, document.createTextNode(check.label));

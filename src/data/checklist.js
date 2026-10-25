@@ -27,8 +27,7 @@ export function checklistExportSnapshot(result) {
       downloadAssets: (item.downloadAssets || []).map(asset => ({ title: asset.title, kind: asset.kind, evidence: sources([asset.evidence])[0] })) })),
     coverage: result.coverage.map(check => ({ category: check.category, status: check.status,
       summary: check.summary, notes: check.notes || [] })),
-    partial: result.partial, researchStatus: result.researchStatus, researchGaps: result.researchGaps || [],
-    demo: result.demo === true
+    partial: result.partial, researchStatus: result.researchStatus, researchGaps: result.researchGaps || []
   };
 }
 

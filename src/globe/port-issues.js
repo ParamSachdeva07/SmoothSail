@@ -15,7 +15,7 @@ export function findingDisclosure(finding, onLearnMore) {
   const details = node('details', 'congestion-card__issue');
   details.dataset.issueId = finding.id;
   details.dataset.category = CATEGORY_NAMES[finding.category] || 'Voyage compliance';
-  const needsReview = !finding.demo && ['needs_input', 'unverified'].includes(finding.status);
+  const needsReview = ['needs_input', 'unverified'].includes(finding.status);
   details.dataset.level = needsReview ? 'info' : finding.severity === 'red' ? 'high' : finding.severity === 'yellow' ? 'mild' : 'info';
   const summary = node('summary', 'congestion-card__level');
   summary.setAttribute('aria-label', finding.title);
@@ -43,7 +43,7 @@ export function findingDisclosure(finding, onLearnMore) {
     body.append(list);
   }
   if (finding.evidence?.length) body.append(node('h4', 'congestion-card__eyebrow', 'Sources'), sourceList(finding.evidence));
-  if (onLearnMore && !finding.demo) {
+  if (onLearnMore) {
     const button = node('button', 'button button--primary port-alert__ask', 'Ask');
     button.type = 'button'; button.addEventListener('click', () => onLearnMore(finding));
     const actions = node('footer', 'port-alert__actions'); actions.append(button);

@@ -9,7 +9,7 @@ export function findingsForPort(findings, routeId, portId) {
     const supportedAlert = ['yellow', 'red'].includes(f.severity) && ['confirmed', 'estimated'].includes(f.status)
       && f.evidence?.some(e => e.authority === 'official');
     const informationGap = ['needs_input', 'unverified'].includes(f.status);
-    if (!supportedAlert && !informationGap && !f.demo) return false;
+    if (!supportedAlert && !informationGap ) return false;
     seen.add(f.id); return true;
   });
 }

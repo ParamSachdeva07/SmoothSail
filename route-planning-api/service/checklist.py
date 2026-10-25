@@ -18,7 +18,6 @@ from service.compliance_agents import WebEvidence
 from service.compliance_models import CATEGORIES, Category, Evidence
 from service.models import Model, RouteError
 from service.report_context import direct_context
-from service.demo_documents import documents as demo_documents
 
 
 class ChecklistRequest(Model):
@@ -95,7 +94,6 @@ class ExportChecklist(Model):
     partial: bool
     research_status: Literal['not_started', 'researching', 'completed', 'unavailable', 'not_needed']
     research_gaps: list[Annotated[str, Field(max_length=10000)]] = Field(default_factory=list, max_length=30)
-    demo: bool = False
 
     @model_validator(mode='after')
     def valid_references(self):
@@ -287,16 +285,6 @@ async def generate(service, body):
     context, data = saved['context'], saved['data']
     async def research():
         snapshot.update(id=fingerprint, generatedAt=datetime.now(UTC).isoformat())
-        if saved.get('demo_research'):
-            cargo = saved['context'].get('cargoText', '')
-            manifest_case = all(marker in cargo for marker in ('SS-2026-001', 'SPE-LFP-2026', '3480'))
-            snapshot['demo'] = manifest_case
-            snapshot['documents'] = demo_documents(snapshot['actions']) if manifest_case else []
-            snapshot['researchStatus'] = 'completed'
-            snapshot['researchGaps'] = ['Public references are attached. Obtain actual signed declarations, permits, vessel records and insurance from their issuers.'] if manifest_case else ['Upload the cargo manifest to see relevant document references.']
-            snapshot['notice'] = 'Reference checklist only. The uploaded manifest is fictional; public guidance is real, but no issued voyage document or clearance is supplied.'
-            cache[fingerprint] = snapshot
-            return snapshot
         if snapshot['actions']:
             source_rows = list(data.get('evidence', [])) + [e for a in snapshot['actions'] for e in a['evidence']]
             source_rows = list({e['id']: e for e in source_rows}.values())
@@ -370,8 +358,6 @@ def export_snapshot(service, body):
         result['notice'] = ('Planning checklist, not regulatory clearance. Checked items record your progress, '
             'not verified compliance. This export reproduces the displayed checklist and does not revalidate '
             'its findings. Confirm current requirements and timings with the relevant authority or provider.')
-        if result.get('demo'):
-            result['notice'] = 'Public reference documents are real; the uploaded manifest is fictional and no issued voyage document or clearance is supplied. ' + result['notice']
         if result['routeId'] != body.route_id or result['id'] != body.checklist_id:
             raise RouteError('unknown_checklist', 'The export does not match the displayed route checklist.')
     else:

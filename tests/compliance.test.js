@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAnalysisPlanner, useDemoResearch } from '../src/data/route-planning.js';
+import { createAnalysisPlanner } from '../src/data/route-planning.js';
 import { createApiClient } from '../src/api/client.js';
 import { findingsForPort, coverageSummary, formatEvidenceMarkers, categoryProgress } from '../src/data/compliance.js';
 
@@ -35,12 +35,6 @@ test('routes resolve early and specialist updates survive navigation but cancel 
   unsubscribe();
 });
 
-test('demo research requires an explicit local opt-in and the exact port pair', () => {
-  assert.equal(useDemoResearch({ origin: 'FRLEH', destination: 'SGSIN' }, true), true);
-  assert.equal(useDemoResearch({ origin: 'FRLEH', destination: 'SGSIN' }, false), false);
-  assert.equal(useDemoResearch({ origin: 'NLRTM', destination: 'SGSIN' }, true), false);
-});
-
 test('NDJSON parser handles split Unicode and multiple results without buffering until complete', async () => {
   const bytes = new TextEncoder().encode('{"type":"route_report","report":{"name":"海"}}\n{"type":"complete"}\n');
   const body = new ReadableStream({ start(controller) {
@@ -64,7 +58,6 @@ test('port lists include scoped information gaps alongside supported alerts', ()
   assert.equal(findingsForPort([{ ...finding, status: 'needs_input', severity: 'info', evidence: [] }], 'r1', 'NLRTM').length, 1);
   assert.equal(findingsForPort([finding], 'r1', 'FRLEH').length, 0);
   assert.equal(findingsForPort([{ ...finding, evidence: [] }], 'r1', 'NLRTM').length, 0);
-  assert.equal(findingsForPort([{ ...finding, demo: true, status: 'unverified', evidence: [] }], 'r1', 'NLRTM').length, 1);
   assert.equal(findingsForPort([{ ...finding, severity: 'info' }], 'r1', 'NLRTM').length, 0);
   assert.match(coverageSummary({ checks: { sanctions: { status: 'needs_input' } }, complete: true }), /1 need data/);
 });
@@ -75,7 +68,6 @@ test('category progress shows completed work separately from findings and failed
   assert.equal(incomplete.label, 'Research complete'); assert.equal(incomplete.phase, 'done');
   assert.equal(incomplete.status, 'needs_input');
   assert.equal(categoryProgress({ checks: {}, complete: true }, 'trade').label, 'Unavailable');
-  assert.equal(categoryProgress({ checks: { trade: { status: 'completed', demo: true } } }, 'trade').label, 'Research complete');
   assert.notEqual(categoryProgress({ checks: {}, complete: true }, 'trade').phase, 'done');
   assert.equal(categoryProgress({ checks: {}, complete: true, error: 'Disconnected' }, 'trade').label, 'Interrupted');
   const row = categoryProgress({ checks: { security: { status: 'completed', summary: 'Checked publications',

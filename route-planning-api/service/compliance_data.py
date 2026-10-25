@@ -38,7 +38,7 @@ OFFICIAL_DOMAINS = {
     'security': ('lmalloyds.com', 'itfseafarers.org', 'iial.co.uk', 'imo.org', 'maritime.dot.gov', 'mscio.eu'),
     'environment': ('europa.eu', 'imo.org', 'eex.com', 'gov.uk'),
     'trade': ('europa.eu', 'gov.uk', 'trade-tariff.service.gov.uk', 'usitc.gov', 'ustr.gov', 'cbp.gov',
-              'ecfr.gov', 'portofrotterdam.com', 'haropaport.com', 'hamburg-port-authority.de', 'mpa.gov.sg', 'customs.gov.sg', 'pancanal.com', 'suezcanal.gov.eg'),
+              'ecfr.gov', 'portofrotterdam.com', 'haropaport.com', 'hamburg-port-authority.de', 'mpa.gov.sg', 'pancanal.com', 'suezcanal.gov.eg'),
     'sanctions': ('treasury.gov', 'gov.uk', 'europa.eu', 'un.org', 'imo.org', 'ecfr.gov', 'state.gov', 'bis.gov'),
     'dangerous_goods': ('imo.org', 'unece.org', 'phmsa.dot.gov', 'ecfr.gov', 'gov.uk', 'europa.eu'),
 }

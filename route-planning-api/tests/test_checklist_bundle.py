@@ -12,7 +12,6 @@ from service.checklist_bundle import build_bundle, normalize_file, MAX_FILE_BYTE
 from service.main import app
 from test_checklist import body, generate, service, displayed_snapshot, EVIDENCE
 
-
 FILE_ID = '0123456789abcdef01234567'
 FORM_ID = '1123456789abcdef01234567'
 
